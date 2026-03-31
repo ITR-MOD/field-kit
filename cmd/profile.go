@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
-	"github.com/Merith-TK/itr-field-kit/internal/modmgr"
+	"github.com/ITR-MOD/field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/modmgr"
 	"github.com/spf13/cobra"
 )
 

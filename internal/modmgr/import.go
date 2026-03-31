@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/config"
 )
 
 // Import imports a mod from a zip archive.

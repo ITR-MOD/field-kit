@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
-	"github.com/Merith-TK/itr-field-kit/internal/deploy"
-	"github.com/Merith-TK/itr-field-kit/internal/modmgr"
+	"github.com/ITR-MOD/field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/deploy"
+	"github.com/ITR-MOD/field-kit/internal/modmgr"
 )
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────

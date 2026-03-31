@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/config"
 )
 
 // ModType describes which installer type was detected for a mod.

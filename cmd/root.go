@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/config"
 	"github.com/spf13/cobra"
 )
 

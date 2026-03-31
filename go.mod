@@ -1,4 +1,4 @@
-module github.com/Merith-TK/itr-field-kit
+module github.com/ITR-MOD/field-kit
 
 go 1.24.2
 

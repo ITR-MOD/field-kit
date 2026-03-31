@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Merith-TK/itr-field-kit/internal/config"
+	"github.com/ITR-MOD/field-kit/internal/config"
 )
 
 // ModOverrides holds per-source-file destination overrides for a mod.

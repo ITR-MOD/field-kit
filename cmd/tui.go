@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/Merith-TK/itr-field-kit/tui"
+	"github.com/ITR-MOD/field-kit/tui"
 )
 
 var tuiCmd = &cobra.Command{

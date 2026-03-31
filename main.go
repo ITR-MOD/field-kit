@@ -1,6 +1,6 @@
 package main
 
-import "github.com/Merith-TK/itr-field-kit/cmd"
+import "github.com/ITR-MOD/field-kit/cmd"
 
 func main() {
 	cmd.Execute()
