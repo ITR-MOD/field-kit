@@ -34,7 +34,8 @@ const (
 	overlayInput
 	overlayConfirm
 	overlayInfo
-	overlayDetect // Steam auto-detect results list
+	overlayDetect     // Steam auto-detect results list
+	overlayFilePicker // zip file browser
 )
 
 // ─── Message types ───────────────────────────────────────────────────────────
@@ -99,6 +100,9 @@ type model struct {
 	// Detect overlay (Steam auto-detect).
 	detectPaths  []string // found paths + sentinel "manual" as last entry
 	detectCursor int
+
+	// File picker overlay.
+	filePicker filePickerState
 }
 
 // New creates and initialises the model.
@@ -294,14 +298,9 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.infoScroll = 0
 		}
 	case "i":
-		return m, func() tea.Msg {
-			return msgShowInput{
-				prompt: "Path to mod .zip (drag & drop works on most terminals):",
-				onDone: func(path string) tea.Cmd {
-					return cmdImport(path)
-				},
-			}
-		}
+		m.openFilePicker(func(path string) tea.Cmd {
+			return cmdImport(path)
+		})
 	case "delete", "d":
 		if n > 0 {
 			mod := m.mods[*cur]
@@ -459,6 +458,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateInfoOverlay(msg)
 	case overlayDetect:
 		return m.updateDetectOverlay(msg)
+	case overlayFilePicker:
+		return m.updateFilePickerOverlay(msg)
 	}
 	return m, nil
 }

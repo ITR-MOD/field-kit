@@ -510,6 +510,9 @@ func (m model) renderOverlayOn(base string) string {
 		content = m.renderInfoOverlay()
 	case overlayDetect:
 		content = m.renderDetectOverlay()
+	case overlayFilePicker:
+		// File picker has its own full-screen placement logic.
+		return m.renderFilePickerOverlay()
 	}
 	if content == "" {
 		return base
