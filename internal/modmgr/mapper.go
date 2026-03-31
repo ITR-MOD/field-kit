@@ -28,12 +28,17 @@ var validExtensions = map[string]bool{
 // Instruction describes a single file to deploy.
 type Instruction struct {
 	// Source is the relative path within the mod's files/ directory.
+	// Empty when WriteContent is set.
 	Source string
 	// Dest is the relative path within the game root where the file should appear.
 	Dest string
 	// IsCustom is true for files that use the "custom" placement path,
 	// meaning they may overwrite real game files and therefore require backup.
 	IsCustom bool
+	// WriteContent, when non-empty, means write this literal string to Dest
+	// as a plain file instead of creating a symlink. Used for manager-provided
+	// assets like override.txt whose content is fixed and not part of any mod zip.
+	WriteContent string
 }
 
 // DetectTypes returns all mod types present in the given file list.
@@ -129,6 +134,13 @@ func MapFiles(files []string) []Instruction {
 		if v := findFirst("dwmapi.dll", ""); v != "" {
 			instructions = append(instructions, Instruction{Source: v, Dest: BinDir + "/dwmapi.dll"})
 		}
+		// override.txt tells UE4SS (loaded by dwmapi.dll in Binaries/Win64) to
+		// look for its DLL and config in Content/Paks instead of Binaries/Win64.
+		// This is a fixed manager-provided asset — not from the mod zip.
+		instructions = append(instructions, Instruction{
+			Dest:         BinDir + "/override.txt",
+			WriteContent: "../../Content/Paks",
+		})
 		if v := findFirst("UE4SS.dll", "ue4ss"); v != "" {
 			instructions = append(instructions, Instruction{Source: v, Dest: PakDir + "/UE4SS.dll"})
 		}

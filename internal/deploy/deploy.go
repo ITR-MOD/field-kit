@@ -16,14 +16,17 @@ import (
 
 // ─── Deployment state ────────────────────────────────────────────────────────
 
-// DeployedFile records a single symlink that was created during deployment.
+// DeployedFile records a single file placed during deployment.
 type DeployedFile struct {
-	// GamePath is the absolute path to the symlink in the game directory.
+	// GamePath is the absolute path to the file/symlink in the game directory.
 	GamePath string `json:"game_path"`
 	// ModID is the mod that owns this file.
 	ModID string `json:"mod_id"`
 	// IsCustom indicates whether this file required a backup before symlinking.
 	IsCustom bool `json:"is_custom,omitempty"`
+	// IsWriteFile indicates this was a plain write (not a symlink) of
+	// manager-provided content such as override.txt.
+	IsWriteFile bool `json:"is_write_file,omitempty"`
 }
 
 // State is the persisted deployment record.
@@ -123,8 +126,26 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 		instructions := modmgr.MapFiles(meta.Files)
 
 		for _, instr := range instructions {
-			srcAbs := filepath.Join(meta.FilesDir(), filepath.FromSlash(instr.Source))
 			dstAbs := filepath.Join(game.Path, filepath.FromSlash(instr.Dest))
+
+			// ── WriteContent: manager-provided file (e.g. override.txt) ─────
+			// Write a fixed string to dstAbs as a plain file; do not symlink.
+			if instr.WriteContent != "" {
+				if err := os.MkdirAll(filepath.Dir(dstAbs), 0755); err != nil {
+					return fmt.Errorf("mkdir for %s: %w", dstAbs, err)
+				}
+				if err := os.WriteFile(dstAbs, []byte(instr.WriteContent), 0644); err != nil {
+					return fmt.Errorf("write %s: %w", dstAbs, err)
+				}
+				state.Deployed = append(state.Deployed, DeployedFile{
+					GamePath:    dstAbs,
+					ModID:       modID,
+					IsWriteFile: true,
+				})
+				continue
+			}
+
+			srcAbs := filepath.Join(meta.FilesDir(), filepath.FromSlash(instr.Source))
 
 			// Skip instructions whose source doesn't exist (e.g. partial packs).
 			if _, err := os.Lstat(srcAbs); err != nil {
@@ -197,9 +218,21 @@ func Undeploy(game *config.GameInstall) error {
 	}
 
 	for _, df := range state.Deployed {
+		if _, err := os.Lstat(df.GamePath); err != nil {
+			// File already gone – fine.
+			continue
+		}
+
+		// Manager-written files (e.g. override.txt) are plain files, not symlinks.
+		// Just delete them; there is nothing to restore.
+		if df.IsWriteFile {
+			_ = os.Remove(df.GamePath)
+			continue
+		}
+
+		// Symlinked files.
 		info, err := os.Lstat(df.GamePath)
 		if err != nil {
-			// File already gone – fine.
 			continue
 		}
 		if !isSymlink(info) {
