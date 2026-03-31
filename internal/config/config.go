@@ -12,9 +12,10 @@ import (
 
 // GameInstall represents a registered game installation.
 type GameInstall struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Path string `json:"path"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Version string `json:"version,omitempty"` // e.g. "itr2", "itr1-1.0" — see config.Version* constants
 }
 
 // Config is the global application config.
@@ -151,12 +152,13 @@ func GameByID(id string) *GameInstall {
 }
 
 // AddGame adds a new game installation and saves.
+// The game version is auto-detected from the install path.
 func AddGame(name, path string) (GameInstall, error) {
 	id := makeGameID(path)
 	if GameByID(id) != nil {
 		return GameInstall{}, fmt.Errorf("game already registered with id %q", id)
 	}
-	g := GameInstall{ID: id, Name: name, Path: path}
+	g := GameInstall{ID: id, Name: name, Path: path, Version: DetectGameVersion(path)}
 	cfg.Games = append(cfg.Games, g)
 	if cfg.ActiveGame == "" {
 		cfg.ActiveGame = id
