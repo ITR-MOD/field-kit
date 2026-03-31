@@ -57,21 +57,26 @@ var (
 		Foreground(cGreenDim).Background(cBlack)
 
 	sAccent = lipgloss.NewStyle().
-		Bold(true).Foreground(cBright)
+		Bold(true).Foreground(cBright).Background(cBlack)
 
 	sSectionTitle = lipgloss.NewStyle().
 		Bold(true).Foreground(cGreenDim).Background(cBlack).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(cGreenFaint).
+		BorderBackground(cBlack).
 		BorderBottom(true)
 
 	sPaneFocused = lipgloss.NewStyle().
+		Background(cBlack).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cGreen)
+		BorderForeground(cGreen).
+		BorderBackground(cBlack)
 
 	sPaneBlur = lipgloss.NewStyle().
+		Background(cBlack).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cGreenFaint)
+		BorderForeground(cGreenFaint).
+		BorderBackground(cBlack)
 
 	sStatus = lipgloss.NewStyle().
 		Foreground(cGreen).Background(cGreenBg).
@@ -91,12 +96,13 @@ var (
 	sOverlay = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(cGreen).
+		BorderBackground(cBlack).
 		Background(cBlack).
 		Foreground(cGreen).
 		Padding(1, 3)
 
 	sOverlayTitle = lipgloss.NewStyle().
-		Bold(true).Foreground(cBright)
+		Bold(true).Foreground(cBright).Background(cBlack)
 
 	sBtnSelected = lipgloss.NewStyle().
 		Bold(true).Foreground(cBlack).Background(cGreen).
@@ -131,15 +137,35 @@ func (m model) View() string {
 
 	page := header + "\n" + content + "\n" + foot
 
+	// Fill every line to the full terminal width with the black background.
+	// This prevents the default terminal background from showing through.
+	page = fillBackground(page, m.width, cBlack)
+
 	if m.overlay != overlayNone {
 		return m.renderOverlayOn(page)
 	}
 	return page
 }
 
+// fillBackground pads every line in s to width characters, applying bg as the
+// background colour for any padding added. This ensures no bare terminal
+// background bleeds through.
+func fillBackground(s string, width int, bg lipgloss.Color) string {
+	pad := lipgloss.NewStyle().Background(bg)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		w := lipgloss.Width(line)
+		if w < width {
+			lines[i] = line + pad.Render(strings.Repeat(" ", width-w))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 func (m model) renderHeader() string {
+	bgStyle := lipgloss.NewStyle().Background(cBlack)
 	title := sTitle.Render("ITR FIELD KIT")
 
 	var tabs []string
@@ -151,15 +177,16 @@ func (m model) renderHeader() string {
 			tabs = append(tabs, num+sTabInactive.Render(name))
 		}
 	}
-	row := title + "  " + strings.Join(tabs, "")
+	gap := bgStyle.Render("  ")
+	row := title + gap + strings.Join(tabs, "")
 	// Fill remaining width with black background.
 	w := lipgloss.Width(row)
 	if w < m.width {
 		row += lipgloss.NewStyle().Background(cBlack).Render(strings.Repeat(" ", m.width-w))
 	}
 
-	// Divider line.
-	divider := lipgloss.NewStyle().Foreground(cGreenFaint).Render(strings.Repeat("─", m.width))
+	// Divider line — explicit background so the ─ characters aren't bare terminal colour.
+	divider := lipgloss.NewStyle().Foreground(cGreenFaint).Background(cBlack).Render(strings.Repeat("─", m.width))
 	return row + "\n" + divider
 }
 
@@ -269,8 +296,11 @@ func (m model) renderModsTab(h int) string {
 
 func (m model) renderProfilesTab(h int) string {
 	// Split horizontally: left = profile list, right = mod toggle list.
+	// No gap between panes — the adjacent borders provide visual separation
+	// and avoid any bare-terminal-background strip in the middle of lines.
 	leftW := 26
-	rightW := m.width - leftW - 5 // 5 = borders + gap
+	// 4 = left pane border (2) + right pane border (2)
+	rightW := m.width - leftW - 4
 
 	leftContent := m.renderProfilesList(h-2, leftW)
 	rightContent := m.renderProfileMods(h-2, rightW)
@@ -286,7 +316,7 @@ func (m model) renderProfilesTab(h int) string {
 
 	left := leftStyle.Width(leftW).Height(h - 2).Render(leftContent)
 	right := rightStyle.Width(rightW).Height(h - 2).Render(rightContent)
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
 
 func (m model) renderProfilesList(h, w int) string {
@@ -384,12 +414,12 @@ func (m model) renderDeployTab(h int) string {
 		sb.WriteString(sItemFaint.Render("  No active game.") + "\n")
 		sb.WriteString(sItemFaint.Render("  Go to GAMES tab [1] and register your game folder.\n\n"))
 	} else {
-		sb.WriteString(sAccent.Render("  Game:    ") + sItem.Render(game.Name) + "\n")
-		sb.WriteString(sAccent.Render("  Path:    ") + sItemFaint.Render(truncate(game.Path, m.width-14)) + "\n")
+		sb.WriteString(sAccent.Render("  Game:    ") + sItem.Width(m.width-12).Render(game.Name) + "\n")
+		sb.WriteString(sAccent.Render("  Path:    ") + sItemFaint.Width(m.width-12).Render(truncate(game.Path, m.width-14)) + "\n")
 	}
 
 	// Active profile.
-	sb.WriteString(sAccent.Render("  Profile: ") + sItem.Render(cfg.ActiveProfile) + "\n\n")
+	sb.WriteString(sAccent.Render("  Profile: ") + sItem.Width(m.width-12).Render(cfg.ActiveProfile) + "\n\n")
 
 	// Deployment status.
 	state := m.deployState
@@ -436,6 +466,7 @@ func (m model) renderFoot() string {
 }
 
 func (m model) renderHelp() string {
+	sep := sHelp.Render("  ")   // styled separator — black background
 	key := func(k, desc string) string {
 		return sHelpKey.Render(k) + sHelp.Render(":"+desc)
 	}
@@ -458,7 +489,7 @@ func (m model) renderHelp() string {
 	}
 	parts = append(parts, key("q", "quit"))
 
-	line := "  " + strings.Join(parts, "  ")
+	line := sHelp.Render("  ") + strings.Join(parts, sep)
 	w := lipgloss.Width(line)
 	if w < m.width {
 		line += sHelp.Render(strings.Repeat(" ", m.width-w))
@@ -477,6 +508,8 @@ func (m model) renderOverlayOn(base string) string {
 		content = m.renderConfirmOverlay()
 	case overlayInfo:
 		content = m.renderInfoOverlay()
+	case overlayDetect:
+		content = m.renderDetectOverlay()
 	}
 	if content == "" {
 		return base
@@ -501,8 +534,9 @@ func (m model) renderConfirmOverlay() string {
 	} else {
 		noStyle = sBtnSelected
 	}
+	btnGap := sItemFaint.Render("    ")
 	content := sOverlayTitle.Render(m.confirmPrompt) + "\n\n" +
-		yesStyle.Render(" YES ") + "    " + noStyle.Render("  NO  ") + "\n\n" +
+		yesStyle.Render(" YES ") + btnGap + noStyle.Render("  NO  ") + "\n\n" +
 		sItemFaint.Render("←/→ choose   y/n shortcut   Enter confirm")
 	return sOverlay.Width(50).Render(content)
 }
@@ -532,6 +566,31 @@ func (m model) renderInfoOverlay() string {
 		sItemFaint.Render("↑↓ scroll   Enter/Esc close")
 
 	return sOverlay.Width(w).Render(content)
+}
+
+func (m model) renderDetectOverlay() string {
+	w := imax(60, m.width*2/3)
+	var sb strings.Builder
+	sb.WriteString(sOverlayTitle.Render("Detected Steam Installations") + "\n")
+	sb.WriteString(sItemFaint.Render(strings.Repeat("─", w-6)) + "\n\n")
+
+	for i, p := range m.detectPaths {
+		var line string
+		if p == detectManualSentinel {
+			line = "  [ Enter path manually… ]"
+		} else {
+			line = "  " + p
+		}
+		if i == m.detectCursor {
+			sb.WriteString(sItemSelected.Width(w - 6).Render(line))
+		} else {
+			sb.WriteString(sItem.Render(line))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n" + sItemFaint.Render("↑↓ navigate   Enter select   Esc cancel"))
+	return sOverlay.Width(w).Render(sb.String())
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

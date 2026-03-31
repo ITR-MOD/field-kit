@@ -34,6 +34,7 @@ const (
 	overlayInput
 	overlayConfirm
 	overlayInfo
+	overlayDetect // Steam auto-detect results list
 )
 
 // ─── Message types ───────────────────────────────────────────────────────────
@@ -94,6 +95,10 @@ type model struct {
 	infoTitle     string
 	infoLines     []string
 	infoScroll    int
+
+	// Detect overlay (Steam auto-detect).
+	detectPaths  []string // found paths + sentinel "manual" as last entry
+	detectCursor int
 }
 
 // New creates and initialises the model.
@@ -237,25 +242,22 @@ func (m model) updateGamesTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, statusCmd("active game: "+g.Name, false)
 		}
 	case "a":
-		return m, func() tea.Msg {
-			return msgShowInput{
-				prompt: "Enter game installation path (drag & drop the folder):",
-				onDone: func(path string) tea.Cmd {
-					path = trimInput(path)
-					if path == "" {
-						return nil
-					}
-					return func() tea.Msg {
-						return msgShowInput{
-							prompt: "Enter display name (blank = \"Into the Radius 2\"):",
-							onDone: func(name string) tea.Cmd {
-								return cmdAddGame(path, name)
-							},
-						}
-					}
-				},
+		found := config.FindSteamInstalls()
+		if len(found) == 0 {
+			// Nothing detected — go straight to manual input.
+			return m, func() tea.Msg {
+				return msgShowInput{
+					prompt: "No Steam installations detected. Enter game path manually:",
+					onDone: func(path string) tea.Cmd {
+						return gameAskName(trimInput(path))
+					},
+				}
 			}
 		}
+		// Show the detect overlay with found paths + manual option.
+		m.overlay = overlayDetect
+		m.detectPaths = append(found, detectManualSentinel)
+		m.detectCursor = 0
 	case "delete", "d":
 		if n > 0 {
 			g := m.games[*cur]
@@ -455,6 +457,45 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateConfirmOverlay(msg)
 	case overlayInfo:
 		return m.updateInfoOverlay(msg)
+	case overlayDetect:
+		return m.updateDetectOverlay(msg)
+	}
+	return m, nil
+}
+
+func (m model) updateDetectOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	n := len(m.detectPaths) // last entry is always the "manual" sentinel
+	switch key.String() {
+	case "esc":
+		m.overlay = overlayNone
+	case "up", "k":
+		if m.detectCursor > 0 {
+			m.detectCursor--
+		}
+	case "down", "j":
+		if m.detectCursor < n-1 {
+			m.detectCursor++
+		}
+	case "enter", " ":
+		chosen := m.detectPaths[m.detectCursor]
+		m.overlay = overlayNone
+		if chosen == detectManualSentinel {
+			// Show manual input.
+			return m, func() tea.Msg {
+				return msgShowInput{
+					prompt: "Enter game installation path:",
+					onDone: func(path string) tea.Cmd {
+						return gameAskName(trimInput(path))
+					},
+				}
+			}
+		}
+		// Auto-detected path chosen — ask for display name.
+		return m, gameAskName(chosen)
 	}
 	return m, nil
 }
@@ -534,6 +575,24 @@ func (m model) updateInfoOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // ─── Commands ────────────────────────────────────────────────────────────────
+
+// detectManualSentinel is the last entry in detectPaths to represent "manual entry".
+const detectManualSentinel = "__manual__"
+
+// gameAskName shows the name-input overlay for a known path, then adds the game.
+func gameAskName(path string) tea.Cmd {
+	if path == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		return msgShowInput{
+			prompt: "Display name (blank = \"Into the Radius 2\"):",
+			onDone: func(name string) tea.Cmd {
+				return cmdAddGame(path, name)
+			},
+		}
+	}
+}
 
 func statusCmd(text string, isErr bool) tea.Cmd {
 	return func() tea.Msg { return msgStatus{text: text, isError: isErr} }
