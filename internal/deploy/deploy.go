@@ -123,7 +123,7 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 			return fmt.Errorf("load mod %q: %w", modID, err)
 		}
 
-		instructions := modmgr.MapFiles(meta.Files)
+		instructions := modmgr.MapFilesForGame(meta.Files, config.GameInternalID(game.Version))
 
 		for _, instr := range instructions {
 			dstAbs := filepath.Join(game.Path, filepath.FromSlash(instr.Dest))

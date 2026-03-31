@@ -12,7 +12,8 @@ import (
 	"strings"
 )
 
-// Game directory constants – relative to game root.
+// Default game directory constants for ITR2 – relative to game root.
+// Use MapFilesForGame to deploy to a different game version.
 const (
 	GameInternalID = "IntoTheRadius2"
 	PakDir         = "IntoTheRadius2/Content/Paks"
@@ -84,9 +85,22 @@ func IsSupported(files []string) bool {
 	return false
 }
 
-// MapFiles maps mod files to their game-root-relative destinations.
-// This is a port of installContent() from the Vortex extension.
+// MapFiles maps mod files for ITR2 (default).
 func MapFiles(files []string) []Instruction {
+	return MapFilesForGame(files, GameInternalID)
+}
+
+// MapFilesForGame maps mod files to their game-root-relative destinations,
+// using gameInternalID as the top-level directory prefix (e.g. "IntoTheRadius"
+// for ITR1, "IntoTheRadius2" for ITR2).
+// This mirrors how the Vortex extension uses GAME_INTERNAL_ID.
+func MapFilesForGame(files []string, gameInternalID string) []Instruction {
+	pakDir := gameInternalID + "/Content/Paks"
+	binDir := gameInternalID + "/Binaries/Win64"
+	return mapFilesImpl(files, pakDir, binDir)
+}
+
+func mapFilesImpl(files []string, pakDir, binDir string) []Instruction {
 	var instructions []Instruction
 	alreadyCopied := map[string]bool{}
 
@@ -132,20 +146,20 @@ func MapFiles(files []string) []Instruction {
 			return ""
 		}
 		if v := findFirst("dwmapi.dll", ""); v != "" {
-			instructions = append(instructions, Instruction{Source: v, Dest: BinDir + "/dwmapi.dll"})
+			instructions = append(instructions, Instruction{Source: v, Dest: binDir + "/dwmapi.dll"})
 		}
 		// override.txt tells UE4SS (loaded by dwmapi.dll in Binaries/Win64) to
 		// look for its DLL and config in Content/Paks instead of Binaries/Win64.
 		// This is a fixed manager-provided asset — not from the mod zip.
 		instructions = append(instructions, Instruction{
-			Dest:         BinDir + "/override.txt",
+			Dest:         binDir + "/override.txt",
 			WriteContent: "../../Content/Paks",
 		})
 		if v := findFirst("UE4SS.dll", "ue4ss"); v != "" {
-			instructions = append(instructions, Instruction{Source: v, Dest: PakDir + "/UE4SS.dll"})
+			instructions = append(instructions, Instruction{Source: v, Dest: pakDir + "/UE4SS.dll"})
 		}
 		if v := findFirst("UE4SS-settings.ini", "ue4ss"); v != "" {
-			instructions = append(instructions, Instruction{Source: v, Dest: PakDir + "/UE4SS-settings.ini"})
+			instructions = append(instructions, Instruction{Source: v, Dest: pakDir + "/UE4SS-settings.ini"})
 		}
 		// The Mods folder is mapped to LuaMods.
 		for _, f := range files {
@@ -153,7 +167,7 @@ func MapFiles(files []string) []Instruction {
 				rel := strings.TrimPrefix(f, "ue4ss/Mods/")
 				instructions = append(instructions, Instruction{
 					Source: f,
-					Dest:   PakDir + "/LuaMods/" + rel,
+					Dest:   pakDir + "/LuaMods/" + rel,
 				})
 			}
 		}
@@ -189,11 +203,11 @@ func MapFiles(files []string) []Instruction {
 			instructions = append(instructions,
 				Instruction{
 					Source: luaModDir + "/enabled.txt",
-					Dest:   PakDir + "/LuaMods/" + luaModName + "/enabled.txt",
+					Dest:   pakDir + "/LuaMods/" + luaModName + "/enabled.txt",
 				},
 				Instruction{
 					Source: luaModDir + "/Scripts",
-					Dest:   PakDir + "/LuaMods/" + luaModName + "/Scripts",
+					Dest:   pakDir + "/LuaMods/" + luaModName + "/Scripts",
 				},
 			)
 			alreadyCopied[f] = true
@@ -214,7 +228,7 @@ func MapFiles(files []string) []Instruction {
 			}
 			instructions = append(instructions, Instruction{
 				Source: dir(f), // copy entire shared/ dir
-				Dest:   PakDir + "/LuaMods/shared/" + libName,
+				Dest:   pakDir + "/LuaMods/shared/" + libName,
 			})
 			alreadyCopied[f] = true
 			continue
@@ -226,10 +240,10 @@ func MapFiles(files []string) []Instruction {
 			var dest string
 			if parentFolder == "LogicMods" {
 				modName := base(dir(fileDir))
-				dest = filepath.ToSlash(filepath.Join(PakDir, "LogicMods", modName, base(f)))
+				dest = filepath.ToSlash(filepath.Join(pakDir, "LogicMods", modName, base(f)))
 			} else {
 				modName := base(fileDir)
-				dest = filepath.ToSlash(filepath.Join(PakDir, "Mods", modName, base(f)))
+				dest = filepath.ToSlash(filepath.Join(pakDir, "Mods", modName, base(f)))
 			}
 			instructions = append(instructions, Instruction{Source: f, Dest: dest})
 			alreadyCopied[f] = true

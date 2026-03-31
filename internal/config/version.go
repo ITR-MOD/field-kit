@@ -70,6 +70,15 @@ func VersionLabel(version string) string {
 	}
 }
 
+// GameInternalID returns the Unreal internal game directory name for a version.
+// This matches GAME_INTERNAL_ID in the Vortex extension.
+func GameInternalID(version string) string {
+	if IsITR1(version) {
+		return "IntoTheRadius"
+	}
+	return "IntoTheRadius2"
+}
+
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil

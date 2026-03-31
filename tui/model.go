@@ -2,7 +2,9 @@
 package tui
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -47,6 +49,7 @@ type msgStatus struct {
 type msgRefresh struct{}
 type msgShowInput struct {
 	prompt string
+	value  string // optional pre-filled text
 	onDone func(string) tea.Cmd
 }
 type msgImportDone struct {
@@ -141,7 +144,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayInput
 		m.inputPrompt = msg.prompt
 		m.inputOnDone = msg.onDone
-		m.textInput.SetValue("")
+		m.textInput.SetValue(msg.value)
+		m.textInput.CursorEnd()
 		m.textInput.Focus()
 		return m, textinput.Blink
 
@@ -248,20 +252,22 @@ func (m model) updateGamesTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		found := config.FindSteamInstalls()
 		if len(found) == 0 {
-			// Nothing detected — go straight to manual input.
-			return m, func() tea.Msg {
-				return msgShowInput{
-					prompt: "No Steam installations detected. Enter game path manually:",
-					onDone: func(path string) tea.Cmd {
-						return gameAskName(trimInput(path))
-					},
-				}
-			}
+			// Nothing detected — open exe browser directly.
+			m.openFilePicker(FpFilterGameExe, func(path string) tea.Cmd {
+				return gameAskName(filepath.Dir(path))
+			})
+			return m, nil
 		}
 		// Show the detect overlay with found paths + manual option.
 		m.overlay = overlayDetect
 		m.detectPaths = append(found, detectManualSentinel)
 		m.detectCursor = 0
+	case "f":
+		// Browse for IntoTheRadius*.exe to locate a game install manually.
+		m.openFilePicker(FpFilterGameExe, func(path string) tea.Cmd {
+			// The exe lives at game root; pass the parent dir as game path.
+			return gameAskName(filepath.Dir(path))
+		})
 	case "delete", "backspace":
 		if n > 0 {
 			g := m.games[*cur]
@@ -298,7 +304,7 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.infoScroll = 0
 		}
 	case "i":
-		m.openFilePicker(func(path string) tea.Cmd {
+		m.openFilePicker(FpFilterArchives, func(path string) tea.Cmd {
 			return cmdImport(path)
 		})
 	case "delete", "backspace":
@@ -358,6 +364,26 @@ func (m model) updateProfilesLeft(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 					return cmdNewProfile(name)
 				},
 			}
+		}
+	case "i":
+		m.openFilePicker(FpFilterProfile, func(path string) tea.Cmd {
+			return cmdImportProfile(path)
+		})
+	case "e":
+		if n > 0 {
+			name := m.profiles[*cur]
+			m.openFilePicker(FpFilterSaveDir, func(destDir string) tea.Cmd {
+				// Directory chosen — now ask for the filename.
+				return func() tea.Msg {
+					return msgShowInput{
+						prompt: "Export filename:",
+						value:  name + ".fieldkit.json",
+						onDone: func(filename string) tea.Cmd {
+							return cmdExportProfile(name, filepath.Join(destDir, filename))
+						},
+					}
+				}
+			})
 		}
 	case "delete", "backspace":
 		if n > 0 {
@@ -485,15 +511,11 @@ func (m model) updateDetectOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		chosen := m.detectPaths[m.detectCursor]
 		m.overlay = overlayNone
 		if chosen == detectManualSentinel {
-			// Show manual input.
-			return m, func() tea.Msg {
-				return msgShowInput{
-					prompt: "Enter game installation path:",
-					onDone: func(path string) tea.Cmd {
-						return gameAskName(trimInput(path))
-					},
-				}
-			}
+			// Open exe browser for manual selection.
+			m.openFilePicker(FpFilterGameExe, func(path string) tea.Cmd {
+				return gameAskName(filepath.Dir(path))
+			})
+			return m, nil
 		}
 		// Auto-detected path chosen — ask for display name.
 		return m, gameAskName(chosen)
@@ -585,13 +607,28 @@ func gameAskName(path string) tea.Cmd {
 	if path == "" {
 		return nil
 	}
+	defaultName := defaultGameName(path)
 	return func() tea.Msg {
 		return msgShowInput{
-			prompt: "Display name (blank = \"Into the Radius 2\"):",
+			prompt: "Display name (blank = \"" + defaultName + "\"):",
 			onDone: func(name string) tea.Cmd {
 				return cmdAddGame(path, name)
 			},
 		}
+	}
+}
+
+// defaultGameName returns a version-aware default display name for a game path.
+func defaultGameName(path string) string {
+	switch config.DetectGameVersion(path) {
+	case config.VersionITR1_07a:
+		return "Into the Radius v0.7a"
+	case config.VersionITR1_10:
+		return "Into the Radius v1.0"
+	case config.VersionITR1_27:
+		return "Into the Radius v2.7"
+	default:
+		return "Into the Radius 2"
 	}
 }
 
@@ -612,7 +649,7 @@ func cmdImport(path string) tea.Cmd {
 
 func cmdAddGame(path, name string) tea.Cmd {
 	if name == "" {
-		name = "Into the Radius 2"
+		name = defaultGameName(path)
 	}
 	return func() tea.Msg {
 		if _, err := config.AddGame(name, path); err != nil {
@@ -681,6 +718,48 @@ func cmdDeleteProfile(name string) func() tea.Cmd {
 			}
 			return msgRefresh{}
 		}
+	}
+}
+
+// cmdImportProfile reads a .fieldkit.json file and saves it as a local profile.
+func cmdImportProfile(path string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return msgStatus{text: "import profile: " + err.Error(), isError: true}
+		}
+		var p modmgr.Profile
+		if err := json.Unmarshal(data, &p); err != nil {
+			return msgStatus{text: "import profile: invalid file: " + err.Error(), isError: true}
+		}
+		if p.Name == "" {
+			// Derive name from filename: strip .fieldkit.json
+			base := filepath.Base(path)
+			p.Name = strings.TrimSuffix(base, ".fieldkit.json")
+		}
+		if err := p.Save(); err != nil {
+			return msgStatus{text: "import profile: " + err.Error(), isError: true}
+		}
+		return msgRefresh{}
+	}
+}
+
+// cmdExportProfile writes a profile as a .fieldkit.json to the given full path.
+// outPath is the complete destination (dir + filename) chosen via the save dialog.
+func cmdExportProfile(name, outPath string) tea.Cmd {
+	return func() tea.Msg {
+		p, err := modmgr.LoadProfile(name)
+		if err != nil {
+			return msgStatus{text: "export profile: " + err.Error(), isError: true}
+		}
+		data, err := json.MarshalIndent(p, "", "  ")
+		if err != nil {
+			return msgStatus{text: "export profile: " + err.Error(), isError: true}
+		}
+		if err := os.WriteFile(outPath, data, 0644); err != nil {
+			return msgStatus{text: "export profile: " + err.Error(), isError: true}
+		}
+		return msgStatus{text: "exported: " + outPath, isError: false}
 	}
 }
 

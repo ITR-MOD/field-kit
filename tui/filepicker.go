@@ -10,6 +10,69 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// ─── File filters ─────────────────────────────────────────────────────────────
+
+// fpFilter controls which files are visible in the picker.
+type fpFilter struct {
+	// Title shown in the picker header (e.g. " Import Mod").
+	Title string
+	// Match returns true if a file (not directory) should be listed.
+	// Ignored when DirPick is true (no files are shown).
+	Match func(name string) bool
+	// DirPick switches the picker to directory-selection mode:
+	// Enter on a directory calls onPick with that directory path instead of
+	// navigating into it. Tab still navigates into the directory.
+	// Files are hidden entirely in this mode.
+	DirPick bool
+}
+
+var (
+	// FpFilterArchives shows zip / tar / 7z / rar archives.
+	FpFilterArchives = fpFilter{
+		Title: " Import Mod",
+		Match: func(name string) bool {
+			ext := strings.ToLower(filepath.Ext(name))
+			switch ext {
+			case ".zip", ".7z", ".rar":
+				return true
+			}
+			// tar, tar.gz, tar.bz2, tar.xz
+			lower := strings.ToLower(name)
+			return strings.HasSuffix(lower, ".tar") ||
+				strings.HasSuffix(lower, ".tar.gz") ||
+				strings.HasSuffix(lower, ".tar.bz2") ||
+				strings.HasSuffix(lower, ".tar.xz") ||
+				strings.HasSuffix(lower, ".tgz")
+		},
+	}
+
+	// FpFilterGameExe shows IntoTheRadius*.exe executables.
+	FpFilterGameExe = fpFilter{
+		Title: " Select Game Executable",
+		Match: func(name string) bool {
+			lower := strings.ToLower(name)
+			return strings.HasPrefix(lower, "intotheradius") &&
+				strings.HasSuffix(lower, ".exe")
+		},
+	}
+
+	// FpFilterProfile shows *.fieldkit.json profile export files.
+	FpFilterProfile = fpFilter{
+		Title: " Import Profile",
+		Match: func(name string) bool {
+			return strings.HasSuffix(strings.ToLower(name), ".fieldkit.json")
+		},
+	}
+
+	// FpFilterSaveDir is a directory-picker used for choosing a save location.
+	// Enter selects the highlighted directory; Tab navigates into it.
+	FpFilterSaveDir = fpFilter{
+		Title:   " Choose Save Directory",
+		DirPick: true,
+		Match:   func(string) bool { return false }, // no files shown
+	}
+)
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 // fpEntry is one row in the file picker list.
@@ -21,15 +84,17 @@ type fpEntry struct {
 
 // filePickerState holds all state for the file picker overlay.
 // The picker always operates in "path mode": a live os.ReadDir of the current
-// directory filtered by the name portion of the query, showing dirs + .zip
-// files only.  Backspace on an empty name filter navigates up one directory.
+// directory filtered by the name portion of the query, showing dirs + files
+// matching the active fpFilter.  Backspace on an empty name filter navigates
+// up one directory.
 type filePickerState struct {
 	dir     string    // absolute path of the directory being listed
 	filter  string    // name filter (chars typed after last /)
 	entries []fpEntry // current visible list
 	cursor  int
 	scroll  int
-	onPick  func(string) tea.Cmd // called with absolute path of chosen .zip
+	onPick  func(string) tea.Cmd // called with absolute path of chosen file
+	fp      fpFilter              // controls which files are shown
 }
 
 // ─── State helpers ────────────────────────────────────────────────────────────
@@ -63,7 +128,7 @@ func fpBuildEntries(s *filePickerState) {
 		return
 	}
 
-	f := strings.ToLower(s.filter)
+	nameFilter := strings.ToLower(s.filter)
 
 	// Dirs first, then files — mirrors residual picker order.
 	for _, pass := range []bool{true, false} {
@@ -75,15 +140,15 @@ func fpBuildEntries(s *filePickerState) {
 			if e.IsDir() != pass {
 				continue
 			}
-			// Files: only .zip
-			if !e.IsDir() && strings.ToLower(filepath.Ext(name)) != ".zip" {
+			// Files: hidden in DirPick mode, otherwise filtered by Match.
+			if !e.IsDir() && (s.fp.DirPick || !s.fp.Match(name)) {
 				continue
 			}
 			label := name
 			if e.IsDir() {
 				label = name + "/"
 			}
-			if f != "" && !strings.Contains(strings.ToLower(label), f) {
+			if nameFilter != "" && !strings.Contains(strings.ToLower(label), nameFilter) {
 				continue
 			}
 			s.entries = append(s.entries, fpEntry{
@@ -97,10 +162,11 @@ func fpBuildEntries(s *filePickerState) {
 
 // ─── Model integration ───────────────────────────────────────────────────────
 
-// openFilePicker initialises and opens the file picker overlay.
-func (m *model) openFilePicker(onPick func(string) tea.Cmd) {
+// openFilePicker initialises and opens the file picker overlay with the given
+// filter and callback.
+func (m *model) openFilePicker(filter fpFilter, onPick func(string) tea.Cmd) {
 	dir := fpDefaultDir()
-	s := filePickerState{dir: dir, onPick: onPick}
+	s := filePickerState{dir: dir, onPick: onPick, fp: filter}
 	fpBuildEntries(&s)
 	m.filePicker = s
 	m.overlay = overlayFilePicker
@@ -132,12 +198,23 @@ func (m model) updateFilePickerOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fpBuildEntries(p)
 			p.cursor, p.scroll = 0, 0
 		} else {
-			// Zip selected — close picker and trigger import.
+			// File selected — close picker and trigger callback.
 			path := sel.path
 			onPick := p.onPick
 			m.overlay = overlayNone
 			if onPick != nil {
 				return m, onPick(path)
+			}
+		}
+
+	case "e":
+		if p.fp.DirPick {
+			// Confirm the current directory as the save destination.
+			onPick := p.onPick
+			dir := p.dir
+			m.overlay = overlayNone
+			if onPick != nil {
+				return m, onPick(dir)
 			}
 		}
 
@@ -292,7 +369,7 @@ func (m model) renderFilePickerOverlay() string {
 	var sb strings.Builder
 
 	// ── title ──────────────────────────────────────────────────
-	titleText := fpTitle.Render(" Import Mod")
+	titleText := fpTitle.Render(p.fp.Title)
 	countText := ""
 	if len(p.entries) > 0 {
 		countText = fpCount.Render(fmt.Sprintf(" %d items", len(p.entries)))
@@ -366,6 +443,9 @@ func (m model) renderFilePickerOverlay() string {
 
 	// ── hint line ──────────────────────────────────────────────
 	hintText := "↑↓ nav  Enter open  Tab dir  Bksp up  type:filter  Esc cancel"
+	if p.fp.DirPick {
+		hintText = "↑↓ nav  Enter browse  Tab dir  Bksp up  type:filter  e:save here  Esc cancel"
+	}
 	scrollSuffix := ""
 	if len(p.entries) > listH && len(p.entries) > 1 {
 		denom := len(p.entries) - listH + 1
