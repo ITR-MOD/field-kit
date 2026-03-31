@@ -125,6 +125,27 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 
 		instructions := modmgr.MapFilesForGame(meta.Files, config.GameInternalID(game.Version))
 
+		// Apply destination overrides: profile > mod > default.
+		modOvr, _ := modmgr.LoadModOverrides(modID)
+		for i, instr := range instructions {
+			src := instr.Source
+			// 1. Profile-level override — highest priority; short-circuits mod-level.
+			if profile.Overrides != nil {
+				if profMod, ok := profile.Overrides[modID]; ok {
+					if dest, ok := profMod.Sources[src]; ok {
+						instructions[i].Dest = dest
+						continue
+					}
+				}
+			}
+			// 2. Mod-level override — only if profile didn't override this source.
+			if modOvr != nil {
+				if dest, ok := modOvr.Sources[src]; ok {
+					instructions[i].Dest = dest
+				}
+			}
+		}
+
 		for _, instr := range instructions {
 			dstAbs := filepath.Join(game.Path, filepath.FromSlash(instr.Dest))
 

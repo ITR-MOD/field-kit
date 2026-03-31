@@ -38,6 +38,7 @@ const (
 	overlayInfo
 	overlayDetect     // Steam auto-detect results list
 	overlayFilePicker // zip file browser
+	overlayAdjust     // editable instruction list for manual destination overrides
 )
 
 // ─── Message types ───────────────────────────────────────────────────────────
@@ -106,6 +107,15 @@ type model struct {
 
 	// File picker overlay.
 	filePicker filePickerState
+
+	// Adjust overlay (manual destination override editor).
+	adjustInstructions []modmgr.Instruction // instructions for the mod being adjusted
+	adjustDefaults     []string             // mapper-default Dest per instruction (parallel slice)
+	adjustOverrides    map[string]string    // edits in progress: source → override dest
+	adjustModID        string               // mod being adjusted
+	adjustCursor       int
+	adjustScroll       int
+	adjustIsProfile    bool // false = mod-level, true = profile-level
 }
 
 // New creates and initialises the model.
@@ -307,6 +317,10 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openFilePicker(FpFilterArchives, func(path string) tea.Cmd {
 			return cmdImport(path)
 		})
+	case "m":
+		if n > 0 {
+			m.openAdjustOverlay(m.mods[*cur], false)
+		}
 	case "delete", "backspace":
 		if n > 0 {
 			mod := m.mods[*cur]
@@ -423,6 +437,10 @@ func (m model) updateProfilesRight(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, statusCmd(err.Error(), true)
 			}
 		}
+	case "m":
+		if n > 0 {
+			m.openAdjustOverlay(m.mods[m.profileModsCursor], true)
+		}
 	}
 	return m, nil
 }
@@ -486,6 +504,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateDetectOverlay(msg)
 	case overlayFilePicker:
 		return m.updateFilePickerOverlay(msg)
+	case overlayAdjust:
+		return m.updateAdjustOverlay(msg)
 	}
 	return m, nil
 }
@@ -594,6 +614,153 @@ func (m model) updateInfoOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.infoScroll++
 		}
 	}
+	return m, nil
+}
+
+// ─── Adjust overlay ───────────────────────────────────────────────────────────
+
+// openAdjustOverlay opens the manual destination editor for a mod.
+// isProfile=true scopes the edits to the currently selected profile;
+// isProfile=false edits the mod's own overrides.fk.json.
+func (m *model) openAdjustOverlay(mod *modmgr.ModMeta, isProfile bool) {
+	game := config.ActiveGameInstall()
+	gameID := ""
+	if game != nil {
+		gameID = config.GameInternalID(game.Version)
+	} else {
+		gameID = config.GameInternalID(config.VersionITR2)
+	}
+
+	instructions := modmgr.MapFilesForGame(mod.Files, gameID)
+
+	// Snapshot mapper-default Dest for each instruction.
+	defaults := make([]string, len(instructions))
+	for i, instr := range instructions {
+		defaults[i] = instr.Dest
+	}
+
+	// Load existing overrides into the editing map.
+	overrides := make(map[string]string)
+	if isProfile && m.selectedProfile != nil {
+		if m.selectedProfile.Overrides != nil {
+			if modOvr, ok := m.selectedProfile.Overrides[mod.ID]; ok {
+				for k, v := range modOvr.Sources {
+					overrides[k] = v
+				}
+			}
+		}
+	} else {
+		modOvr, _ := modmgr.LoadModOverrides(mod.ID)
+		if modOvr != nil {
+			for k, v := range modOvr.Sources {
+				overrides[k] = v
+			}
+		}
+	}
+
+	m.adjustInstructions = instructions
+	m.adjustDefaults = defaults
+	m.adjustOverrides = overrides
+	m.adjustModID = mod.ID
+	m.adjustCursor = 0
+	m.adjustScroll = 0
+	m.adjustIsProfile = isProfile
+	m.overlay = overlayAdjust
+}
+
+// saveAdjustOverlay persists current edits and closes the overlay.
+func (m *model) saveAdjustOverlay() tea.Cmd {
+	overrides := &modmgr.ModOverrides{Sources: m.adjustOverrides}
+	modID := m.adjustModID
+
+	if m.adjustIsProfile && m.selectedProfile != nil {
+		if m.selectedProfile.Overrides == nil {
+			m.selectedProfile.Overrides = make(map[string]modmgr.ModOverrides)
+		}
+		if len(m.adjustOverrides) == 0 {
+			delete(m.selectedProfile.Overrides, modID)
+		} else {
+			m.selectedProfile.Overrides[modID] = modmgr.ModOverrides{Sources: m.adjustOverrides}
+		}
+		if err := m.selectedProfile.Save(); err != nil {
+			return statusCmd(err.Error(), true)
+		}
+	} else {
+		if err := modmgr.SaveModOverrides(modID, overrides); err != nil {
+			return statusCmd(err.Error(), true)
+		}
+	}
+	m.overlay = overlayNone
+	return statusCmd("overrides saved", false)
+}
+
+func (m model) updateAdjustOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+
+	instrs := m.adjustInstructions
+	// Build a navigable index skipping WriteContent rows (manager-written, non-editable).
+	var editableIdx []int
+	for i, instr := range instrs {
+		if instr.WriteContent == "" {
+			editableIdx = append(editableIdx, i)
+		}
+	}
+	ne := len(editableIdx)
+
+	switch key.String() {
+	case "esc", "s":
+		return m, m.saveAdjustOverlay()
+
+	case "up", "k":
+		if m.adjustCursor > 0 {
+			m.adjustCursor--
+		}
+
+	case "down", "j":
+		if m.adjustCursor < ne-1 {
+			m.adjustCursor++
+		}
+
+	case "enter":
+		if ne == 0 {
+			break
+		}
+		instrIdx := editableIdx[m.adjustCursor]
+		instr := instrs[instrIdx]
+		// Current effective dest: override if set, else mapper default.
+		current := m.adjustDefaults[instrIdx]
+		if ov, ok := m.adjustOverrides[instr.Source]; ok {
+			current = ov
+		}
+		src := instr.Source
+		return m, func() tea.Msg {
+			return msgShowInput{
+				prompt: "Destination for " + src + ":",
+				value:  current,
+				onDone: func(newDest string) tea.Cmd {
+					newDest = strings.TrimSpace(newDest)
+					if newDest == "" || newDest == m.adjustDefaults[instrIdx] {
+						delete(m.adjustOverrides, src)
+					} else {
+						m.adjustOverrides[src] = newDest
+					}
+					m.overlay = overlayAdjust
+					return nil
+				},
+			}
+		}
+
+	case "r":
+		if ne == 0 {
+			break
+		}
+		src := instrs[editableIdx[m.adjustCursor]].Source
+		delete(m.adjustOverrides, src)
+	}
+
 	return m, nil
 }
 

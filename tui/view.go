@@ -477,10 +477,10 @@ func (m model) renderHelp() string {
 	case tabGames:
 		parts = append(parts, key("a", "detect"), key("f", "browse"), key("↵", "set active"), key("Del", "remove"))
 	case tabMods:
-		parts = append(parts, key("i", "import"), key("↵", "info"), key("Del", "remove"))
+		parts = append(parts, key("i", "import"), key("↵", "info"), key("m", "adjust"), key("Del", "remove"))
 	case tabProfiles:
 		if m.profilesRightFocus {
-			parts = append(parts, key("Space", "toggle mod"), key("←", "profiles pane"))
+			parts = append(parts, key("Space", "toggle mod"), key("m", "adjust"), key("←", "profiles pane"))
 		} else {
 			parts = append(parts, key("n", "new"), key("i", "import"), key("e", "export"), key("↵", "activate"), key("→", "mods"), key("Del", "delete"))
 		}
@@ -513,6 +513,8 @@ func (m model) renderOverlayOn(base string) string {
 	case overlayFilePicker:
 		// File picker has its own full-screen placement logic.
 		return m.renderFilePickerOverlay()
+	case overlayAdjust:
+		content = m.renderAdjustOverlay()
 	}
 	if content == "" {
 		return base
@@ -593,6 +595,125 @@ func (m model) renderDetectOverlay() string {
 	}
 
 	sb.WriteString("\n" + sItemFaint.Render("↑↓ navigate   Enter select   Esc cancel"))
+	return sOverlay.Width(w).Render(sb.String())
+}
+
+func (m model) renderAdjustOverlay() string {
+	w := imax(72, m.width*3/4)
+	innerW := w - 6 // account for overlay border padding
+	visH := imax(5, m.height*2/3)
+
+	instrs := m.adjustInstructions
+	defaults := m.adjustDefaults
+
+	// Build scope label for the title.
+	scopeLabel := " [mod-level]"
+	if m.adjustIsProfile && m.selectedProfile != nil {
+		scopeLabel = " [profile: " + m.selectedProfile.Name + "]"
+	}
+
+	// Find the mod name.
+	modName := m.adjustModID
+	for _, mod := range m.mods {
+		if mod.ID == m.adjustModID {
+			modName = mod.Name
+			break
+		}
+	}
+
+	// Build display rows — one per instruction.
+	type row struct {
+		instrIdx   int
+		label      string
+		isModified bool
+		isWritten  bool // WriteContent rows: non-editable
+	}
+	var rows []row
+	editablePos := 0 // tracks position in the editable-only cursor space
+	_ = editablePos
+	cursorRow := 0 // which row index corresponds to m.adjustCursor in editables
+	editableCount := 0
+	for i, instr := range instrs {
+		if instr.WriteContent != "" {
+			label := fmt.Sprintf("  %-36s  (manager-written)", truncate(instr.Source, 36))
+			rows = append(rows, row{instrIdx: i, label: label, isWritten: true})
+			continue
+		}
+		dest := defaults[i]
+		modified := false
+		if ov, ok := m.adjustOverrides[instr.Source]; ok {
+			dest = ov
+			modified = true
+		}
+		src := truncate(instr.Source, 30)
+		dst := truncate(dest, innerW-36)
+		marker := "  "
+		if modified {
+			marker = "* "
+		}
+		label := fmt.Sprintf("%s%-30s  →  %s", marker, src, dst)
+		if editableCount == m.adjustCursor {
+			cursorRow = len(rows)
+		}
+		rows = append(rows, row{instrIdx: i, label: label, isModified: modified})
+		editableCount++
+	}
+
+	// Scroll so cursorRow stays visible.
+	scroll := m.adjustScroll
+	if cursorRow < scroll {
+		scroll = cursorRow
+	}
+	if cursorRow >= scroll+visH {
+		scroll = cursorRow - visH + 1
+	}
+
+	var sb strings.Builder
+	sb.WriteString(sOverlayTitle.Render(" Adjust: "+modName) + sItemFaint.Render(scopeLabel) + "\n")
+	sb.WriteString(sItemFaint.Render(strings.Repeat("─", innerW)) + "\n")
+
+	editableI := 0
+	for rowI, r := range rows {
+		if rowI < scroll || rowI >= scroll+visH {
+			if !r.isWritten {
+				editableI++
+			}
+			continue
+		}
+		selected := !r.isWritten && editableI == m.adjustCursor
+		prefix := "  "
+		if selected {
+			prefix = "▶ "
+		}
+		line := prefix + r.label
+
+		var style lipgloss.Style
+		switch {
+		case r.isWritten:
+			style = sItemFaint
+		case selected && r.isModified:
+			style = sItemActiveSelected
+		case selected:
+			style = sItemSelected
+		case r.isModified:
+			style = sItemActive
+		default:
+			style = sItem
+		}
+		sb.WriteString(style.Width(innerW).Render(line) + "\n")
+		if !r.isWritten {
+			editableI++
+		}
+	}
+
+	// Scroll indicator.
+	scrollInfo := ""
+	if len(rows) > visH {
+		scrollInfo = "\n" + sItemFaint.Render(fmt.Sprintf("(%d/%d)", scroll+1, len(rows)))
+	}
+
+	sb.WriteString(scrollInfo + "\n")
+	sb.WriteString(sItemFaint.Render("↑↓ nav   Enter edit   r reset   * = overridden   Esc/s save"))
 	return sOverlay.Width(w).Render(sb.String())
 }
 

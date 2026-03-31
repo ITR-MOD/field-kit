@@ -91,8 +91,9 @@ func ListMods() ([]*ModMeta, error) {
 
 // Profile holds the list of enabled mods for a named profile.
 type Profile struct {
-	Name string   `json:"name"`
-	Mods []string `json:"mods"` // ordered list of mod IDs (earlier = lower priority)
+	Name      string                  `json:"name"`
+	Mods      []string                `json:"mods"`                // ordered list of mod IDs (earlier = lower priority)
+	Overrides map[string]ModOverrides `json:"overrides,omitempty"` // per-mod destination overrides; key = modID
 }
 
 // ProfilePath returns the path for a profile's JSON file.
