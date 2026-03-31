@@ -475,14 +475,14 @@ func (m model) renderHelp() string {
 
 	switch m.activeTab {
 	case tabGames:
-		parts = append(parts, key("a", "add"), key("↵", "set active"), key("d", "remove"))
+		parts = append(parts, key("a", "add"), key("↵", "set active"), key("Del", "remove"))
 	case tabMods:
-		parts = append(parts, key("i", "import"), key("↵", "info"), key("d", "remove"))
+		parts = append(parts, key("i", "import"), key("↵", "info"), key("Del", "remove"))
 	case tabProfiles:
 		if m.profilesRightFocus {
 			parts = append(parts, key("Space", "toggle mod"), key("←", "profiles pane"))
 		} else {
-			parts = append(parts, key("n", "new"), key("↵", "activate"), key("→", "mods"), key("d", "delete"))
+			parts = append(parts, key("n", "new"), key("↵", "activate"), key("→", "mods"), key("Del", "delete"))
 		}
 	case tabDeploy:
 		parts = append(parts, key("d", "deploy"), key("u", "undeploy"), key("r", "refresh"))

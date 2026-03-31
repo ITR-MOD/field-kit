@@ -236,7 +236,7 @@ func (m model) updateGamesTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if *cur < n-1 {
 			*cur++
 		}
-	case "enter", " ":
+	case "enter":
 		if n > 0 {
 			g := m.games[*cur]
 			if err := config.SetActiveGame(g.ID); err != nil {
@@ -262,7 +262,7 @@ func (m model) updateGamesTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayDetect
 		m.detectPaths = append(found, detectManualSentinel)
 		m.detectCursor = 0
-	case "delete", "d":
+	case "delete", "backspace":
 		if n > 0 {
 			g := m.games[*cur]
 			m.overlay = overlayConfirm
@@ -301,7 +301,7 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openFilePicker(func(path string) tea.Cmd {
 			return cmdImport(path)
 		})
-	case "delete", "d":
+	case "delete", "backspace":
 		if n > 0 {
 			mod := m.mods[*cur]
 			m.overlay = overlayConfirm
@@ -337,7 +337,7 @@ func (m model) updateProfilesLeft(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			*cur++
 			m.loadSelectedProfile()
 		}
-	case "enter", " ":
+	case "enter":
 		if n > 0 {
 			name := m.profiles[*cur]
 			if err := config.SetActiveProfile(name); err != nil {
@@ -359,7 +359,7 @@ func (m model) updateProfilesLeft(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				},
 			}
 		}
-	case "delete", "d":
+	case "delete", "backspace":
 		if n > 0 {
 			name := m.profiles[*cur]
 			m.overlay = overlayConfirm
