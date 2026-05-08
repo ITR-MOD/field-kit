@@ -115,42 +115,38 @@ func modMetaToInfo(m *modmgr.ModMeta) ModInfo {
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
 
-// GetProfileNames returns the names of all saved profiles.
-func (a *App) GetProfileNames() ([]string, error) {
-	return modmgr.ListProfiles()
+// GetProfileNames returns the names of all saved profiles for the given game install.
+func (a *App) GetProfileNames(gameID string) ([]string, error) {
+	return modmgr.ListProfiles(gameID)
 }
 
-// GetActiveProfileName returns the currently active profile name.
-func (a *App) GetActiveProfileName() string {
-	c := config.Get()
-	if c == nil {
-		return ""
-	}
-	return c.ActiveProfile
+// GetActiveProfileName returns the active profile name for the given game install.
+func (a *App) GetActiveProfileName(gameID string) string {
+	return config.GetActiveProfile(gameID)
 }
 
-// GetProfile loads a profile by name.
-func (a *App) GetProfile(name string) (*modmgr.Profile, error) {
-	return modmgr.LoadProfile(name)
+// GetProfile loads a profile by game and name.
+func (a *App) GetProfile(gameID, name string) (*modmgr.Profile, error) {
+	return modmgr.LoadProfile(gameID, name)
 }
 
-// NewProfile creates an empty profile with the given name.
-func (a *App) NewProfile(name string) error {
+// NewProfile creates an empty profile for the given game.
+func (a *App) NewProfile(gameID, name string) error {
 	if name == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
-	p := &modmgr.Profile{Name: name}
+	p := &modmgr.Profile{GameID: gameID, Name: name}
 	return p.Save()
 }
 
-// SetActiveProfile marks a profile as active and persists it.
-func (a *App) SetActiveProfile(name string) error {
-	return config.SetActiveProfile(name)
+// SetActiveProfile marks a profile as active for the given game and persists it.
+func (a *App) SetActiveProfile(gameID, name string) error {
+	return config.SetActiveProfile(gameID, name)
 }
 
-// ProfileAddMod adds a mod to the named profile.
-func (a *App) ProfileAddMod(profileName, modID string) error {
-	p, err := modmgr.LoadProfile(profileName)
+// ProfileAddMod adds a mod to a profile for the given game.
+func (a *App) ProfileAddMod(gameID, profileName, modID string) error {
+	p, err := modmgr.LoadProfile(gameID, profileName)
 	if err != nil {
 		return err
 	}
@@ -158,9 +154,9 @@ func (a *App) ProfileAddMod(profileName, modID string) error {
 	return p.Save()
 }
 
-// ProfileRemoveMod removes a mod from the named profile.
-func (a *App) ProfileRemoveMod(profileName, modID string) error {
-	p, err := modmgr.LoadProfile(profileName)
+// ProfileRemoveMod removes a mod from a profile for the given game.
+func (a *App) ProfileRemoveMod(gameID, profileName, modID string) error {
+	p, err := modmgr.LoadProfile(gameID, profileName)
 	if err != nil {
 		return err
 	}
@@ -182,7 +178,7 @@ func (a *App) Deploy(gameID, profileName string) DeployResult {
 	if g == nil {
 		return DeployResult{OK: false, Message: fmt.Sprintf("no game with id %q", gameID)}
 	}
-	p, err := modmgr.LoadProfile(profileName)
+	p, err := modmgr.LoadProfile(gameID, profileName)
 	if err != nil {
 		return DeployResult{OK: false, Message: err.Error()}
 	}
@@ -250,21 +246,21 @@ func (a *App) RemoveMod(id string) error {
 
 // ── Profile management ────────────────────────────────────────────────────────
 
-// DeleteProfile removes a saved profile by name.
-func (a *App) DeleteProfile(name string) error {
-	return modmgr.DeleteProfile(name)
+// DeleteProfile removes a saved profile for the given game.
+func (a *App) DeleteProfile(gameID, name string) error {
+	return modmgr.DeleteProfile(gameID, name)
 }
 
-// DuplicateProfile copies srcName into a new profile named newName.
-func (a *App) DuplicateProfile(srcName, newName string) error {
+// DuplicateProfile copies srcName into a new profile named newName for the given game.
+func (a *App) DuplicateProfile(gameID, srcName, newName string) error {
 	if newName == "" {
 		return fmt.Errorf("profile name cannot be empty")
 	}
-	src, err := modmgr.LoadProfile(srcName)
+	src, err := modmgr.LoadProfile(gameID, srcName)
 	if err != nil {
 		return err
 	}
-	dup := &modmgr.Profile{Name: newName, Mods: append([]string{}, src.Mods...)}
+	dup := &modmgr.Profile{GameID: gameID, Name: newName, Mods: append([]string{}, src.Mods...)}
 	return dup.Save()
 }
 

@@ -159,11 +159,11 @@ const FALLBACK = {
   GetActiveGameID:    () => 'G-001',
   SetActiveGame:      (id) => ({ ok:true, message:'ok' }),
   GetMods:            () => FALLBACK_MODS,
-  GetProfileNames:    () => FALLBACK_PROFILES,
-  GetActiveProfileName: () => 'DEFAULT',
-  GetProfile:         (name) => FALLBACK_PROFILE(name),
-  NewProfile:         (name) => ({ ok:true }),
-  SetActiveProfile:   (name) => ({ ok:true }),
+  GetProfileNames:    (gameID) => FALLBACK_PROFILES,
+  GetActiveProfileName: (gameID) => 'DEFAULT',
+  GetProfile:         (gameID, name) => FALLBACK_PROFILE(name),
+  NewProfile:         (gameID, name) => ({ ok:true }),
+  SetActiveProfile:   (gameID, name) => ({ ok:true }),
   ProfileAddMod:      () => ({ ok:true }),
   ProfileRemoveMod:   () => ({ ok:true }),
   Deploy:             () => ({ ok:true, message:'deploy complete (mock)' }),
@@ -171,8 +171,8 @@ const FALLBACK = {
   ImportModZip:       () => null,
   ImportModFolder:    () => null,
   RemoveMod:          () => null,
-  DeleteProfile:      () => null,
-  DuplicateProfile:   () => null,
+  DeleteProfile:      (gameID, name) => null,
+  DuplicateProfile:   (gameID, src, newName) => null,
   OpenFolder:         () => null,
 };
 
@@ -762,11 +762,17 @@ function App() {
   }
 
   useEffect(() => {
-    Promise.all([call('GetActiveGameID'), call('GetActiveProfileName')]).then(([gid, pname]) => {
+    Promise.all([call('GetActiveGameID'), call('GetActiveProfileName', activeGameID || '')]).then(([gid, pname]) => {
       setActiveGameID(gid || '');
       setActiveProfileName(pname || '');
     });
   }, []);
+
+  // When the active game changes, fetch the active profile for that game
+  useEffect(() => {
+    if (!activeGameID) return;
+    call('GetActiveProfileName', activeGameID).then(pname => setActiveProfileName(pname || ''));
+  }, [activeGameID]);
 
   const statusGame = activeGameID || '--';
   const statusProfile = activeProfileName || '--';
@@ -830,7 +836,8 @@ function App() {
           <${TabInstalls}  active=${tab==='installs'} activeGameID=${activeGameID}
                            onActiveGameChange=${setActiveGameID} />
           <${TabMods}      active=${tab==='mods'} />
-          <${TabProfiles}  active=${tab==='profiles'} activeProfileName=${activeProfileName}
+          <${TabProfiles}  active=${tab==='profiles'} activeGameID=${activeGameID}
+                           activeProfileName=${activeProfileName}
                            onActiveProfileChange=${setActiveProfileName} />
           <${TabDeploy}    active=${tab==='deploy'} activeGameID=${activeGameID}
                            activeProfileName=${activeProfileName}

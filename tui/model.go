@@ -360,7 +360,7 @@ func (m model) updateProfilesLeft(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if n > 0 {
 			name := m.profiles[*cur]
-			if err := config.SetActiveProfile(name); err != nil {
+			if err := config.SetActiveProfile(config.Get().ActiveGame, name); err != nil {
 				return m, statusCmd(err.Error(), true)
 			}
 			m.reload()
@@ -454,7 +454,7 @@ func (m model) updateDeployTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if game == nil {
 			return m, statusCmd("no active game – go to GAMES tab first", true)
 		}
-		profile, err := modmgr.LoadProfile(config.Get().ActiveProfile)
+		profile, err := modmgr.LoadProfile(config.Get().ActiveGame, config.GetActiveProfile(config.Get().ActiveGame))
 		if err != nil {
 			return m, statusCmd(err.Error(), true)
 		}
@@ -868,8 +868,9 @@ func cmdNewProfile(name string) tea.Cmd {
 	if name == "" {
 		return nil
 	}
+	gameID := config.Get().ActiveGame
 	return func() tea.Msg {
-		p := &modmgr.Profile{Name: name}
+		p := &modmgr.Profile{GameID: gameID, Name: name}
 		if err := p.Save(); err != nil {
 			return msgStatus{text: err.Error(), isError: true}
 		}
@@ -878,9 +879,10 @@ func cmdNewProfile(name string) tea.Cmd {
 }
 
 func cmdDeleteProfile(name string) func() tea.Cmd {
+	gameID := config.Get().ActiveGame
 	return func() tea.Cmd {
 		return func() tea.Msg {
-			if err := os.Remove(modmgr.ProfilePath(name)); err != nil && !os.IsNotExist(err) {
+			if err := modmgr.DeleteProfile(gameID, name); err != nil && !os.IsNotExist(err) {
 				return msgStatus{text: err.Error(), isError: true}
 			}
 			return msgRefresh{}
@@ -890,6 +892,7 @@ func cmdDeleteProfile(name string) func() tea.Cmd {
 
 // cmdImportProfile reads a .fieldkit.json file and saves it as a local profile.
 func cmdImportProfile(path string) tea.Cmd {
+	gameID := config.Get().ActiveGame
 	return func() tea.Msg {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -900,10 +903,10 @@ func cmdImportProfile(path string) tea.Cmd {
 			return msgStatus{text: "import profile: invalid file: " + err.Error(), isError: true}
 		}
 		if p.Name == "" {
-			// Derive name from filename: strip .fieldkit.json
 			base := filepath.Base(path)
 			p.Name = strings.TrimSuffix(base, ".fieldkit.json")
 		}
+		p.GameID = gameID
 		if err := p.Save(); err != nil {
 			return msgStatus{text: "import profile: " + err.Error(), isError: true}
 		}
@@ -914,8 +917,9 @@ func cmdImportProfile(path string) tea.Cmd {
 // cmdExportProfile writes a profile as a .fieldkit.json to the given full path.
 // outPath is the complete destination (dir + filename) chosen via the save dialog.
 func cmdExportProfile(name, outPath string) tea.Cmd {
+	gameID := config.Get().ActiveGame
 	return func() tea.Msg {
-		p, err := modmgr.LoadProfile(name)
+		p, err := modmgr.LoadProfile(gameID, name)
 		if err != nil {
 			return msgStatus{text: "export profile: " + err.Error(), isError: true}
 		}
@@ -936,7 +940,7 @@ func (m *model) reload() {
 	m.games = config.Get().Games
 	mods, _ := modmgr.ListMods()
 	m.mods = mods
-	names, _ := modmgr.ListProfiles()
+	names, _ := modmgr.ListProfiles(config.Get().ActiveGame)
 	m.profiles = names
 
 	clamp(&m.cursors[tabGames], len(m.games))
@@ -957,7 +961,7 @@ func (m *model) loadSelectedProfile() {
 	if idx >= len(m.profiles) {
 		idx = len(m.profiles) - 1
 	}
-	p, _ := modmgr.LoadProfile(m.profiles[idx])
+	p, _ := modmgr.LoadProfile(config.Get().ActiveGame, m.profiles[idx])
 	m.selectedProfile = p
 }
 

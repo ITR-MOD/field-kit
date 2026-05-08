@@ -323,7 +323,7 @@ func (m model) renderProfilesList(h, w int) string {
 	if len(m.profiles) == 0 {
 		return sItemFaint.Render("No profiles.\n[n] to create one.")
 	}
-	activeProfile := config.Get().ActiveProfile
+	activeProfile := config.GetActiveProfile(config.Get().ActiveGame)
 	cur := m.cursors[tabProfiles]
 	offset := scrollOffset(cur, m.offsets[tabProfiles], h-1)
 	m.offsets[tabProfiles] = offset
@@ -419,7 +419,7 @@ func (m model) renderDeployTab(h int) string {
 	}
 
 	// Active profile.
-	sb.WriteString(sAccent.Render("  Profile: ") + sItem.Width(m.width-12).Render(cfg.ActiveProfile) + "\n\n")
+	sb.WriteString(sAccent.Render("  Profile: ") + sItem.Width(m.width-12).Render(config.GetActiveProfile(cfg.ActiveGame)) + "\n\n")
 
 	// Deployment status.
 	state := m.deployState

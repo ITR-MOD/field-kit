@@ -14,9 +14,13 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy the active profile to the active game installation",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		game := requireActiveGame()
-		profileName := config.Get().ActiveProfile
+		gameID := game.ID
+		profileName := config.GetActiveProfile(gameID)
+		if profileName == "" {
+			return fmt.Errorf("no active profile for game %q – run 'itr profile use <name>' first", gameID)
+		}
 
-		profile, err := modmgr.LoadProfile(profileName)
+		profile, err := modmgr.LoadProfile(gameID, profileName)
 		if err != nil {
 			return fmt.Errorf("load profile %q: %w", profileName, err)
 		}

@@ -92,21 +92,22 @@ func ListMods() ([]*ModMeta, error) {
 
 // Profile holds the list of enabled mods for a named profile.
 type Profile struct {
+	GameID    string                  `json:"game_id"`
 	Name      string                  `json:"name"`
 	Mods      []string                `json:"mods"`                // ordered list of mod IDs (earlier = lower priority)
 	Overrides map[string]ModOverrides `json:"overrides,omitempty"` // per-mod destination overrides; key = modID
 }
 
-// ProfilePath returns the path for a profile's JSON file.
-func ProfilePath(name string) string {
-	return filepath.Join(config.ProfilesDir(), name+".json")
+// ProfilePath returns the path for a profile's JSON file within a game's profile dir.
+func ProfilePath(gameID, name string) string {
+	return filepath.Join(config.GameProfilesDir(gameID), name+".json")
 }
 
-// LoadProfile loads a profile by name, creating a default empty one if not found.
-func LoadProfile(name string) (*Profile, error) {
-	data, err := os.ReadFile(ProfilePath(name))
+// LoadProfile loads a profile by game and name, returning an empty profile if not found.
+func LoadProfile(gameID, name string) (*Profile, error) {
+	data, err := os.ReadFile(ProfilePath(gameID, name))
 	if os.IsNotExist(err) {
-		return &Profile{Name: name}, nil
+		return &Profile{GameID: gameID, Name: name}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("load profile %q: %w", name, err)
@@ -115,16 +116,21 @@ func LoadProfile(name string) (*Profile, error) {
 	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("parse profile %q: %w", name, err)
 	}
+	p.GameID = gameID // ensure set even for profiles saved before this field existed
 	return &p, nil
 }
 
 // Save persists a profile to disk.
 func (p *Profile) Save() error {
+	dir := config.GameProfilesDir(p.GameID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ProfilePath(p.Name), data, 0644)
+	return os.WriteFile(ProfilePath(p.GameID, p.Name), data, 0644)
 }
 
 // HasMod reports whether mod id is in the profile.
@@ -155,14 +161,17 @@ func (p *Profile) RemoveMod(id string) {
 	p.Mods = filtered
 }
 
-// DeleteProfile removes a saved profile by name.
-func DeleteProfile(name string) error {
-	return os.Remove(ProfilePath(name))
+// DeleteProfile removes a saved profile by game and name.
+func DeleteProfile(gameID, name string) error {
+	return os.Remove(ProfilePath(gameID, name))
 }
 
-// ListProfiles returns names of all saved profiles.
-func ListProfiles() ([]string, error) {
-	entries, err := os.ReadDir(config.ProfilesDir())
+// ListProfiles returns names of all saved profiles for the given game install.
+func ListProfiles(gameID string) ([]string, error) {
+	entries, err := os.ReadDir(config.GameProfilesDir(gameID))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

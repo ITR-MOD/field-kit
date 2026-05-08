@@ -20,9 +20,9 @@ type GameInstall struct {
 
 // Config is the global application config.
 type Config struct {
-	Games         []GameInstall `json:"games"`
-	ActiveGame    string        `json:"active_game"`
-	ActiveProfile string        `json:"active_profile"`
+	Games          []GameInstall     `json:"games"`
+	ActiveGame     string            `json:"active_game"`
+	ActiveProfiles map[string]string `json:"active_profiles,omitempty"`
 }
 
 var (
@@ -46,9 +46,14 @@ func ArchivesDir() string {
 	return filepath.Join(dataDir, "mods", "archives")
 }
 
-// ProfilesDir returns the directory where profiles are stored.
+// ProfilesDir returns the root directory where profiles are stored.
 func ProfilesDir() string {
 	return filepath.Join(dataDir, "profiles")
+}
+
+// GameProfilesDir returns the profile directory for a specific game install.
+func GameProfilesDir(gameID string) string {
+	return filepath.Join(dataDir, "profiles", sanitize(gameID))
 }
 
 // BackupsDir returns the root directory for per-game-install backups.
@@ -103,7 +108,7 @@ func Init() error {
 func load() error {
 	data, err := os.ReadFile(configPath)
 	if os.IsNotExist(err) {
-		cfg = &Config{ActiveProfile: "default"}
+		cfg = &Config{}
 		return save()
 	}
 	if err != nil {
@@ -175,9 +180,21 @@ func SetActiveGame(id string) error {
 	return save()
 }
 
-// SetActiveProfile updates the active profile name and saves.
-func SetActiveProfile(name string) error {
-	cfg.ActiveProfile = name
+// GetActiveProfile returns the active profile name for the given game install.
+// Returns "" if no profile has been set for that game.
+func GetActiveProfile(gameID string) string {
+	if cfg == nil || cfg.ActiveProfiles == nil {
+		return ""
+	}
+	return cfg.ActiveProfiles[gameID]
+}
+
+// SetActiveProfile updates the active profile for the given game and saves.
+func SetActiveProfile(gameID, name string) error {
+	if cfg.ActiveProfiles == nil {
+		cfg.ActiveProfiles = make(map[string]string)
+	}
+	cfg.ActiveProfiles[gameID] = name
 	return save()
 }
 
