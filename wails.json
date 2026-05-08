@@ -1,0 +1,14 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "itr-field-kit",
+  "outputfilename": "itr-field-kit",
+  "frontend:dir": "gui/frontend",
+  "frontend:install": "echo skip",
+  "frontend:build": "echo skip",
+  "frontend:dev:watcher": "echo skip",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "Merith-TK",
+    "email": "merith@merith.xyz"
+  }
+}

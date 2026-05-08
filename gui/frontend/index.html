@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ITR Field Kit</title>
+  <link rel="stylesheet" href="assets/css/98.css">
+  <style>
+    html, body { height:100%; margin:0; padding:0; overflow:hidden; background:silver; }
+    body { display:flex; flex-direction:column; }
+    #app { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+
+    /* NOTE: Wails frameless window: wire .title-bar-controls to
+       runtime.WindowMinimise / Maximise / Quit via window.runtime.* */
+
+    .menu-bar { background:silver; display:flex; align-items:center; padding:1px 2px;
+                border-bottom:1px solid #808080; flex-shrink:0; }
+    .menu-item { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
+                 padding:2px 8px; cursor:default; color:#222; user-select:none; }
+    .menu-item:hover { background:navy; color:white; }
+
+    .toolbar { background:silver; padding:2px 4px; display:flex; align-items:center;
+               gap:2px; border-bottom:1px solid #808080; flex-shrink:0; }
+    .toolbar button { min-width:0; padding:0 10px; min-height:22px; font-size:11px; }
+    .toolbar-sep { display:inline-block; width:2px; height:20px; margin:0 4px;
+                   box-shadow:inset -1px 0 #fff,inset 1px 0 grey; }
+
+    .app-body { display:flex; flex:1; overflow:hidden; background:silver; }
+
+    .sidebar { width:160px; flex-shrink:0; background:white; overflow-y:auto;
+               box-shadow:inset -1px 0 grey; padding:4px 2px; }
+    ul.tree-view { background:transparent; padding:0; margin:0; }
+    ul.tree-view li { cursor:default; }
+    .nav-section-label { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
+                         font-weight:bold; padding:4px 4px 2px; color:#222; user-select:none; }
+    .nav-entry { display:flex; align-items:center; gap:4px; padding:2px 6px 2px 14px;
+                 font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
+                 cursor:pointer; color:#222; user-select:none; }
+    .nav-entry:hover  { background:navy; color:white; }
+    .nav-entry.active { background:navy; color:white; }
+
+    .content-area { flex:1; overflow:auto; padding:6px; background:silver;
+                    display:flex; flex-direction:column; }
+
+    .tab-panel { display:none; flex:1; flex-direction:column; }
+    .tab-panel.active { display:flex; }
+
+    .listview { width:100%; border-collapse:collapse; background:white;
+      box-shadow:inset 2px 2px #0a0a0a,inset -1px -1px #fff,inset 1px 1px grey,inset -2px -2px #dfdfdf;
+      font-family:"Pixelated MS Sans Serif",Arial; font-size:11px; }
+    .listview thead th { background:silver;
+      box-shadow:inset -1px -1px #0a0a0a,inset 1px 1px #fff,inset -2px -2px grey,inset 2px 2px #dfdfdf;
+      padding:2px 8px; text-align:left; font-weight:normal; white-space:nowrap; cursor:pointer; }
+    .listview thead th:active {
+      box-shadow:inset -1px -1px #fff,inset 1px 1px #0a0a0a,inset -2px -2px #dfdfdf,inset 2px 2px grey; }
+    .listview tbody td { padding:2px 8px; white-space:nowrap; }
+    .listview tbody tr:hover td { background:navy; color:white; }
+    .listview tbody tr.selected td { background:navy; color:white; }
+
+    .detail-table { width:100%; border-collapse:collapse;
+      font-family:"Pixelated MS Sans Serif",Arial; font-size:11px; }
+    .detail-table td { padding:2px 6px; vertical-align:top; }
+    .detail-table td:first-child { font-weight:bold; white-space:nowrap; width:110px; }
+    .detail-table.no-sel td { color:grey; }
+
+    .log-output { background:black; color:#c0c0c0; font-family:"Courier New",monospace;
+      font-size:11px; padding:4px 6px; line-height:1.65; overflow-y:auto;
+      box-shadow:inset 2px 2px #0a0a0a,inset -1px -1px #fff,inset 1px 1px grey,inset -2px -2px #dfdfdf; }
+    .log-output .lk { color:#00c000; }
+    .log-output .lw { color:yellow; }
+    .log-output .le { color:#ff4040; }
+    .log-output .li { color:#00c0c0; }
+    .log-output .ld { color:#606060; }
+
+    .progress-98 { height:18px; background:white;
+      box-shadow:inset 2px 2px #0a0a0a,inset -1px -1px #fff,inset 1px 1px grey,inset -2px -2px #dfdfdf;
+      overflow:hidden; }
+    .progress-98-fill { height:100%; background:navy; display:flex; align-items:center;
+      justify-content:center; color:white; font-family:"Pixelated MS Sans Serif",Arial; font-size:10px; }
+
+    .listbox { background:white;
+      box-shadow:inset 2px 2px #0a0a0a,inset -1px -1px #fff,inset 1px 1px grey,inset -2px -2px #dfdfdf;
+      overflow-y:auto; padding:0; margin:0; list-style:none; }
+    .listbox li { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px; padding:2px 6px;
+      cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+    .listbox li:hover,.listbox li.selected { background:navy; color:white; }
+
+    .row   { display:flex; align-items:center; gap:4px; }
+    .col   { display:flex; flex-direction:column; gap:4px; }
+    .two-col   { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .three-one { display:grid; grid-template-columns:1fr 170px; gap:6px; }
+    .one-two   { display:grid; grid-template-columns:180px 1fr; gap:6px; }
+    .flex1 { flex:1; }
+    .w100  { width:100%; box-sizing:border-box; }
+    .mb4   { margin-bottom:4px; }
+    .mb6   { margin-bottom:6px; }
+    .small { font-size:10px; }
+    .mono  { font-family:"Courier New",monospace; }
+    .c-dim { color:grey; }
+    .c-ok  { color:green; }
+    .c-warn { color:#c06000; }
+    .c-err  { color:red; }
+
+    fieldset { margin-bottom:6px; }
+    legend   { font-weight:bold; }
+    button.w100 { min-width:0; }
+    .field-label { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
+                   margin-bottom:2px; display:block; }
+    .status-bar { flex-shrink:0; }
+    button.disabled,button[disabled] { color:grey; text-shadow:1px 1px 0 #fff; cursor:default; }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { h, render } from 'https://esm.sh/preact@10';
+import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10/hooks';
+import htm from 'https://esm.sh/htm@3';
+const html = htm.bind(h);
+
+// ── Wails bridge ──────────────────────────────────────────────────────────────
+// When running inside Wails the window.go.gui.App.* methods are injected.
+// When opening directly in a browser (dev/mockup) the FALLBACK data is used.
+
+const IS_WAILS = typeof window !== 'undefined' && !!window.go?.gui?.App;
+
+async function call(method, ...args) {
+  if (IS_WAILS) return window.go.gui.App[method](...args);
+  return FALLBACK[method]?.(...args) ?? null;
+}
+
+// ── Fallback data (browser / mockup mode) ─────────────────────────────────────
+const FALLBACK_INSTALLS = [
+  { id:'G-001', name:'Into The Radius 2',        path:'C:\\Program Files (x86)\\Steam\\steamapps\\common\\IntoTheRadius2', version:'itr2',     activeGame:true  },
+  { id:'G-002', name:'Into The Radius 2 (Dev)',  path:'D:\\Games\\ITR2-Dev',                                               version:'itr2',     activeGame:false },
+  { id:'G-003', name:'Into The Radius (Legacy)', path:'E:\\Archive\\ITR1',                                                 version:'itr1-2.7', activeGame:false },
+];
+const FALLBACK_MODS = [
+  { id:'mod-001', name:'AK-74 Retexture Pack',    version:'1.2.0', game:'ITR2', types:['pak'],   files:3,  status:'imported' },
+  { id:'mod-002', name:'Enhanced Anomaly VFX',    version:'0.9.1', game:'ITR2', types:['pak'],   files:7,  status:'imported' },
+  { id:'mod-003', name:'Realistic Weather System',version:'2.0.0', game:'any',  types:['pak'],   files:2,  status:'imported' },
+  { id:'mod-004', name:'HD Facility Textures',    version:'1.0.3', game:'ITR1', types:['pak'],   files:14, status:'imported' },
+  { id:'mod-005', name:'Stalker Radio Pack',      version:'1.0.0', game:'any',  types:['pak'],   files:2,  status:'imported' },
+];
+const FALLBACK_PROFILES = ['DEFAULT', 'PLAYTHROUGH_01', 'PERFORMANCE'];
+const FALLBACK_PROFILE = (name) => ({
+  name,
+  mods: ['mod-001','mod-002','mod-003','mod-004','mod-005'],
+});
+
+const FALLBACK = {
+  GetInstalls:        () => FALLBACK_INSTALLS,
+  GetActiveGameID:    () => 'G-001',
+  SetActiveGame:      (id) => ({ ok:true, message:'ok' }),
+  GetMods:            () => FALLBACK_MODS,
+  GetProfileNames:    () => FALLBACK_PROFILES,
+  GetActiveProfileName: () => 'DEFAULT',
+  GetProfile:         (name) => FALLBACK_PROFILE(name),
+  NewProfile:         (name) => ({ ok:true }),
+  SetActiveProfile:   (name) => ({ ok:true }),
+  ProfileAddMod:      () => ({ ok:true }),
+  ProfileRemoveMod:   () => ({ ok:true }),
+  Deploy:             () => ({ ok:true, message:'deploy complete (mock)' }),
+  Undeploy:           () => ({ ok:true, message:'undeploy complete (mock)' }),
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function cx(...args) { return args.filter(Boolean).join(' ') || undefined; }
+
+function versionLabel(v) {
+  if (!v) return '--';
+  if (v === 'itr2') return 'ITR2';
+  if (v.startsWith('itr1-0.7')) return 'ITR1 v0.7a';
+  if (v.startsWith('itr1-1.0')) return 'ITR1 v1.0';
+  if (v.startsWith('itr1-2.7')) return 'ITR1 v2.7';
+  if (v.startsWith('itr1'))     return 'ITR1';
+  return v;
+}
+
+// ── Status bar state (shared across tabs via props) ───────────────────────────
+
+// ── Tab: Installations ────────────────────────────────────────────────────────
+function TabInstalls({ active, activeGameID, onActiveGameChange }) {
+  const [installs, setInstalls] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    call('GetInstalls').then(data => {
+      setInstalls(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  const d = sel !== null ? installs[sel] : null;
+
+  async function handleSetActive() {
+    if (!d) return;
+    await call('SetActiveGame', d.id);
+    onActiveGameChange(d.id);
+  }
+
+  async function handleAutoDetect() {
+    setLoading(true);
+    await call('AutoDetectInstalls');
+    const data = await call('GetInstalls');
+    setInstalls(data || []);
+    setLoading(false);
+  }
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-installs">
+
+      <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+        <legend>Registered Installations</legend>
+        <div class="row mb4" style="justify-content:flex-end">
+          <button onclick=${handleAutoDetect}>Auto-Detect</button>
+          <button>Add...</button>
+          <button disabled=${!d}>Edit</button>
+          <button disabled=${!d}>Remove...</button>
+        </div>
+        <div style="flex:1;overflow-y:auto">
+          ${loading
+            ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
+            : html`<table class="listview">
+                <thead>
+                  <tr><th>ID</th><th>Label</th><th>Path</th><th>Version</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  ${installs.map((inst, i) => {
+                    const isActive = inst.id === activeGameID;
+                    const dim = !isActive && inst.version && inst.version.startsWith('itr1');
+                    return html`
+                      <tr class=${sel === i ? 'selected' : undefined} onclick=${() => setSel(i)}>
+                        <td class=${cx('mono', dim && 'c-dim')}>${inst.id}</td>
+                        <td class=${cx(dim && 'c-dim')}>${inst.name}</td>
+                        <td class=${cx('mono','small', dim && 'c-dim')}>${inst.path}</td>
+                        <td class=${cx('mono', dim && 'c-dim')}>${versionLabel(inst.version)}</td>
+                        <td class=${cx(dim && 'c-dim')}>${isActive ? 'Active' : 'Registered'}</td>
+                      </tr>`;
+                  })}
+                </tbody>
+              </table>`
+          }
+        </div>
+      </fieldset>
+
+      <div class="two-col" style="flex-shrink:0">
+        <fieldset>
+          <legend>Installation Detail</legend>
+          <table class=${cx('detail-table', !d && 'no-sel')}>
+            <tr><td>Label:</td>          <td>${d?.name      ?? '--'}</td></tr>
+            <tr><td>Install Path:</td>   <td class="mono small">${d?.path ?? '--'}</td></tr>
+            <tr><td>Version:</td>        <td class="mono">${d ? versionLabel(d.version) : '--'}</td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="col" style="padding:2px 0">
+            <button class="default w100" disabled=${!d} onclick=${handleSetActive}>
+              Set as Active Installation
+            </button>
+            <button class="w100" disabled=${!d}>Open Install Folder</button>
+            <button class="w100" disabled=${!d}>Validate Installation</button>
+          </div>
+        </fieldset>
+      </div>
+
+    </div>
+  `;
+}
+
+// ── Tab: Mods ─────────────────────────────────────────────────────────────────
+function TabMods({ active }) {
+  const [mods, setMods] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [filter, setFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    call('GetMods').then(data => {
+      setMods(data || []);
+      if (data?.length) setSel(0);
+      setLoading(false);
+    });
+  }, []);
+
+  const d = sel !== null ? mods[sel] : null;
+
+  const visible = mods.filter(m =>
+    !filter || m.name.toLowerCase().includes(filter.toLowerCase()) ||
+    m.id.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  function gameClass(game) {
+    if (game === 'ITR1' || (game && game.startsWith('itr1'))) return 'c-warn';
+    if (!game || game === 'any') return 'c-dim';
+    return null;
+  }
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-mods">
+
+      <div class="row mb4">
+        <label class="field-label" style="margin:0;white-space:nowrap">Filter:</label>
+        <input type="text" placeholder="Search mods..." style="flex:1"
+               value=${filter} oninput=${e => setFilter(e.target.value)} />
+        <button>Import .zip...</button>
+        <button>Import Folder...</button>
+      </div>
+
+      <div class="three-one" style="flex:1;overflow:hidden;min-height:0">
+
+        <fieldset style="margin:0;display:flex;flex-direction:column;overflow:hidden">
+          <legend>Mod Library</legend>
+          <div style="flex:1;overflow-y:auto">
+            ${loading
+              ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
+              : html`<table class="listview">
+                  <thead>
+                    <tr><th>ID</th><th>Name</th><th>Types</th><th>Game</th><th>Files</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    ${visible.map((m, i) => {
+                      const idx = mods.indexOf(m);
+                      return html`
+                        <tr class=${sel === idx ? 'selected' : undefined} onclick=${() => setSel(idx)}>
+                          <td class="mono">${m.id.slice(0,8)}</td>
+                          <td>${m.name || '(unnamed)'}</td>
+                          <td class="mono small">${(m.types || []).join(',') || '--'}</td>
+                          <td class=${cx(gameClass(m.game))}>${m.game || 'any'}</td>
+                          <td class="mono">${m.files ?? '--'}</td>
+                          <td class="c-dim">${m.status}</td>
+                        </tr>`;
+                    })}
+                  </tbody>
+                </table>`
+            }
+          </div>
+        </fieldset>
+
+        <fieldset style="margin:0;display:flex;flex-direction:column">
+          <legend>Mod Detail</legend>
+          ${d ? html`
+            <div style="font-family:'Pixelated MS Sans Serif',Arial;font-size:12px;font-weight:bold;margin-bottom:6px">
+              ${d.name}
+            </div>
+            <table class="detail-table">
+              <tr><td>ID:</td>     <td class="mono small">${d.id}</td></tr>
+              <tr><td>Types:</td>  <td class="mono">${(d.types||[]).join(', ') || '--'}</td></tr>
+              <tr><td>Game:</td>   <td class=${cx(gameClass(d.game))}>${d.game || 'any'}</td></tr>
+              <tr><td>Files:</td>  <td class="mono">${d.files ?? '--'}</td></tr>
+              <tr><td>Status:</td> <td class="c-dim">${d.status}</td></tr>
+            </table>
+            <hr style="margin:8px 0 6px" />
+            <div class="col">
+              <button class="w100">Remove Mod...</button>
+            </div>
+          ` : html`
+            <div class="c-dim" style="font-family:'Pixelated MS Sans Serif',Arial;font-size:11px;padding:4px">
+              -- no mod selected --
+            </div>
+          `}
+        </fieldset>
+
+      </div>
+    </div>
+  `;
+}
+
+// ── Tab: Profiles ─────────────────────────────────────────────────────────────
+function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
+  const [profileNames, setProfileNames] = useState([]);
+  const [selName, setSelName] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [mods, setMods] = useState([]);
+  const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([call('GetProfileNames'), call('GetMods')]).then(([names, allMods]) => {
+      const n = names || [];
+      setProfileNames(n);
+      setMods(allMods || []);
+      if (n.length) {
+        const init = n.includes(activeProfileName) ? activeProfileName : n[0];
+        setSelName(init);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!selName) return;
+    call('GetProfile', selName).then(p => setProfile(p));
+    setEditMode(false);
+  }, [selName]);
+
+  const inProfile = mods.filter(m => profile?.mods?.includes(m.id));
+  const notInProfile = mods.filter(m => !profile?.mods?.includes(m.id));
+
+  async function handleSetActive() {
+    if (!selName) return;
+    await call('SetActiveProfile', selName);
+    onActiveProfileChange(selName);
+  }
+
+  async function handleRemoveMod(modID) {
+    await call('ProfileRemoveMod', selName, modID);
+    const p = await call('GetProfile', selName);
+    setProfile(p);
+  }
+
+  async function handleAddMod(modID) {
+    await call('ProfileAddMod', selName, modID);
+    const p = await call('GetProfile', selName);
+    setProfile(p);
+  }
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-profiles">
+      <div class="one-two" style="flex:1;overflow:hidden;min-height:0">
+
+        <!-- Left: profile list -->
+        <div style="display:flex;flex-direction:column;overflow:hidden">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <legend>Profiles</legend>
+            ${loading
+              ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
+              : html`<ul class="listbox flex1">
+                  ${profileNames.map(name => html`
+                    <li class=${selName === name ? 'selected' : undefined}
+                        onclick=${() => setSelName(name)}>
+                      ${name}
+                      <span class=${cx('small', name !== activeProfileName && 'c-dim')}>
+                        ${name === activeProfileName ? '[active]' : ''}
+                      </span>
+                    </li>
+                  `)}
+                </ul>`
+            }
+          </fieldset>
+          <div class="row" style="margin-top:2px;flex-shrink:0">
+            <button style="flex:1">New...</button>
+            <button style="flex:1">Duplicate</button>
+            <button style="flex:1">Delete...</button>
+          </div>
+        </div>
+
+        <!-- Right: mod list for selected profile -->
+        <div style="display:flex;flex-direction:column;overflow:hidden">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <legend>
+              Profile: ${selName || '--'}${' '}
+              <span class="small">${inProfile.length} mods</span>
+            </legend>
+
+            ${editMode ? html`
+              <!-- Edit mode -->
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <div class="two-col" style="flex:1;overflow:hidden;min-height:0">
+
+                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                    <div class="field-label">In Profile:</div>
+                    <div style="flex:1;overflow-y:auto">
+                      <table class="listview">
+                        <thead><tr><th>Name</th><th>ID</th></tr></thead>
+                        <tbody>
+                          ${inProfile.map(m => html`
+                            <tr>
+                              <td>${m.name}</td>
+                              <td class="mono small">${m.id.slice(0,8)}</td>
+                            </tr>
+                          `)}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button class="w100" style="margin-top:3px"
+                            onclick=${() => { /* needs selection state */ }}>
+                      Remove from Profile
+                    </button>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                    <div class="field-label">Available (not in profile):</div>
+                    <div style="flex:1;overflow-y:auto">
+                      <table class="listview">
+                        <thead><tr><th>Name</th><th>ID</th></tr></thead>
+                        <tbody>
+                          ${notInProfile.map(m => html`
+                            <tr>
+                              <td>${m.name}</td>
+                              <td class="mono small">${m.id.slice(0,8)}</td>
+                            </tr>
+                          `)}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button class="w100" style="margin-top:3px"
+                            onclick=${() => { /* needs selection state */ }}>
+                      Add to Profile
+                    </button>
+                  </div>
+
+                </div>
+                <div class="row" style="margin-top:6px;flex-shrink:0;justify-content:flex-end">
+                  <button onclick=${() => setEditMode(false)}>Done</button>
+                </div>
+              </div>
+            ` : html`
+              <!-- View mode -->
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <div style="flex:1;overflow-y:auto">
+                  <table class="listview">
+                    <thead><tr><th>#</th><th>Mod Name</th><th>Types</th></tr></thead>
+                    <tbody>
+                      ${inProfile.map((m, i) => html`
+                        <tr>
+                          <td class="mono">${String(i+1).padStart(2,'0')}</td>
+                          <td>${m.name}</td>
+                          <td class="mono small">${(m.types||[]).join(',') || '--'}</td>
+                        </tr>
+                      `)}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="row" style="margin-top:4px;flex-shrink:0;justify-content:space-between">
+                  <button onclick=${() => setEditMode(true)}>Edit Profile...</button>
+                  <button onclick=${handleSetActive}>Set Active</button>
+                </div>
+              </div>
+            `}
+
+          </fieldset>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// ── Tab: Deploy ───────────────────────────────────────────────────────────────
+function TabDeploy({ active, activeGameID, activeProfileName }) {
+  const [log, setLog] = useState([]);
+  const [deploying, setDeploying] = useState(false);
+
+  function addLog(cls, text) {
+    const ts = new Date().toLocaleTimeString('en-GB', { hour12:false });
+    setLog(prev => [...prev, { cls, text: `[${ts}] ${text}` }]);
+  }
+
+  async function handleDeploy() {
+    if (!activeGameID || !activeProfileName) return;
+    setDeploying(true);
+    addLog('li', `DEPLOY INITIATED -- PROFILE: ${activeProfileName} -> ${activeGameID}`);
+    const result = await call('Deploy', activeGameID, activeProfileName);
+    if (result?.ok) {
+      addLog('lk', result.message);
+    } else {
+      addLog('le', `ERROR: ${result?.message}`);
+    }
+    setDeploying(false);
+  }
+
+  async function handleUndeploy() {
+    if (!activeGameID) return;
+    setDeploying(true);
+    addLog('lw', `UNDEPLOY INITIATED -- ${activeGameID}`);
+    const result = await call('Undeploy', activeGameID);
+    if (result?.ok) {
+      addLog('lk', result.message);
+    } else {
+      addLog('le', `ERROR: ${result?.message}`);
+    }
+    setDeploying(false);
+  }
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-deploy">
+      <div class="two-col mb6">
+        <fieldset>
+          <legend>Deploy Configuration</legend>
+          <table class="detail-table">
+            <tr><td>Game ID:</td>      <td class="mono">${activeGameID || '--'}</td></tr>
+            <tr><td>Profile:</td>      <td><strong>${activeProfileName || '--'}</strong></td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="col">
+            <div class="row">
+              <button class="default" style="flex:1" disabled=${deploying} onclick=${handleDeploy}>
+                ${deploying ? 'Working...' : 'Deploy'}
+              </button>
+              <button style="flex:1" disabled=${deploying} onclick=${handleUndeploy}>Undeploy All...</button>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <fieldset style="flex:1;display:flex;flex-direction:column">
+        <legend>Operation Log</legend>
+        <div class="row mb4" style="justify-content:flex-end">
+          <button onclick=${() => setLog([])}>Clear</button>
+        </div>
+        <div class="log-output flex1" style="min-height:120px">
+          ${log.length === 0
+            ? html`<div class="ld">-- awaiting operation --</div>`
+            : log.map((entry, i) => html`
+                <div key=${i}><span class=${entry.cls}>${entry.text}</span></div>
+              `)
+          }
+        </div>
+      </fieldset>
+    </div>
+  `;
+}
+
+// ── Tab: Settings ─────────────────────────────────────────────────────────────
+function TabSettings({ active }) {
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-settings">
+      <div class="two-col">
+        <fieldset>
+          <legend>Application Settings</legend>
+          <div class="col">
+            <div>
+              <label class="field-label">Default Profile:</label>
+              <input type="text" class="w100" value="DEFAULT" />
+            </div>
+            <div>
+              <label class="field-label">Log Level:</label>
+              <input type="text" class="w100" value="INFO" />
+            </div>
+            <hr />
+            <div class="row">
+              <button class="default" style="flex:1">Save</button>
+              <button style="flex:1">Reset Defaults</button>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>About ITR Field Kit</legend>
+          <table class="detail-table">
+            <tr><td>Application:</td> <td class="mono">itr-field-kit</td></tr>
+            <tr><td>Version:</td>     <td class="mono"><strong>v0.4.0</strong></td></tr>
+            <tr><td>Mode:</td>        <td>GUI (Wails)</td></tr>
+            <tr><td>Frontend:</td>    <td class="mono">Preact 10 + htm</td></tr>
+          </table>
+        </fieldset>
+      </div>
+    </div>
+  `;
+}
+
+// ── App Shell ─────────────────────────────────────────────────────────────────
+const TAB_LABELS = {
+  installs: 'Installations',
+  mods:     'Mods',
+  profiles: 'Profiles',
+  deploy:   'Deploy',
+  settings: 'Settings',
+};
+
+function App() {
+  const [tab, setTab] = useState('installs');
+  const [activeGameID, setActiveGameID] = useState('');
+  const [activeProfileName, setActiveProfileName] = useState('');
+
+  useEffect(() => {
+    Promise.all([call('GetActiveGameID'), call('GetActiveProfileName')]).then(([gid, pname]) => {
+      setActiveGameID(gid || '');
+      setActiveProfileName(pname || '');
+    });
+  }, []);
+
+  const statusGame = activeGameID || '--';
+  const statusProfile = activeProfileName || '--';
+
+  return html`
+    <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+
+      <div class="title-bar">
+        <div class="title-bar-text">ITR Field Kit - Field Management System v0.4.0</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick=${() => window.runtime?.WindowMinimise()}></button>
+          <button aria-label="Maximize" onclick=${() => window.runtime?.WindowToggleMaximise()}></button>
+          <button aria-label="Close"    onclick=${() => window.runtime?.Quit()}></button>
+        </div>
+      </div>
+
+      <div class="menu-bar">
+        <span class="menu-item"><u>F</u>ile</span>
+        <span class="menu-item"><u>E</u>dit</span>
+        <span class="menu-item"><u>V</u>iew</span>
+        <span class="menu-item"><u>P</u>rofile</span>
+        <span class="menu-item"><u>T</u>ools</span>
+        <span class="menu-item"><u>H</u>elp</span>
+      </div>
+
+      <div class="toolbar">
+        <button onclick=${() => setTab('installs')}>Installations</button>
+        <button onclick=${() => setTab('mods')}>Mods</button>
+        <button onclick=${() => setTab('profiles')}>Profiles</button>
+        <div class="toolbar-sep"></div>
+        <button class="default" onclick=${() => setTab('deploy')}>Deploy</button>
+        <button onclick=${() => call('Undeploy', activeGameID)}>Undeploy All</button>
+        <div class="toolbar-sep"></div>
+        <button onclick=${() => setTab('settings')}>Settings</button>
+      </div>
+
+      <div class="app-body">
+        <nav class="sidebar">
+          <ul class="tree-view">
+            <li>
+              <div class="nav-section-label">[ ITR Field Kit ]</div>
+              <ul>
+                ${['installs','mods','profiles','deploy'].map(t => html`
+                  <li>
+                    <div class=${cx('nav-entry', tab === t && 'active')} onclick=${() => setTab(t)}>
+                      ${TAB_LABELS[t]}
+                    </div>
+                  </li>
+                `)}
+              </ul>
+            </li>
+            <li>
+              <div class="nav-section-label">[ System ]</div>
+              <ul>
+                <li>
+                  <div class=${cx('nav-entry', tab === 'settings' && 'active')} onclick=${() => setTab('settings')}>
+                    Settings
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+
+        <div class="content-area">
+          <${TabInstalls}  active=${tab==='installs'} activeGameID=${activeGameID}
+                           onActiveGameChange=${setActiveGameID} />
+          <${TabMods}      active=${tab==='mods'} />
+          <${TabProfiles}  active=${tab==='profiles'} activeProfileName=${activeProfileName}
+                           onActiveProfileChange=${setActiveProfileName} />
+          <${TabDeploy}    active=${tab==='deploy'} activeGameID=${activeGameID}
+                           activeProfileName=${activeProfileName} />
+          <${TabSettings}  active=${tab==='settings'} />
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <p class="status-bar-field">
+          ${IS_WAILS ? 'Connected to Go backend' : 'Mock mode (browser)'}
+        </p>
+        <p class="status-bar-field" style="max-width:220px">Profile: ${statusProfile} | Game: ${statusGame}</p>
+        <p class="status-bar-field" style="max-width:80px">v0.4.0</p>
+      </div>
+
+    </div>
+  `;
+}
+
+render(html`<${App} />`, document.getElementById('app'));
+</script>
+</body>
+</html>
