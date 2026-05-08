@@ -29,7 +29,7 @@ builds:
 
   # Desktop GUI build (Windows only, CGO + Wails desktop tag)
   - id: desktop
-    binary: field-kit-gui
+    binary: field-kit-desktop
     env:
       - CGO_ENABLED=1
     flags:
@@ -60,7 +60,7 @@ archives:
     builds: [desktop]
     formats: [zip]
     name_template: >-
-      {{ .ProjectName }}_gui_
+      {{ .ProjectName }}_desktop_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
