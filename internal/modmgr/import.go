@@ -154,6 +154,71 @@ func copyFileOS(src, dst string) error {
 	return err
 }
 
+// ImportFolder imports a mod from a directory by copying all files.
+// Mirrors Import but skips the archive step.
+func ImportFolder(folderPath string) (*ModMeta, error) {
+	folderName := filepath.Base(folderPath)
+	id := makeModID(folderName)
+
+	if _, err := os.Stat(filepath.Join(config.ModsDir(), id)); err == nil {
+		return nil, fmt.Errorf("mod %q already imported (id: %s)", folderName, id)
+	}
+
+	modDir := filepath.Join(config.ModsDir(), id)
+	filesDir := filepath.Join(modDir, "files")
+	if err := os.MkdirAll(filesDir, 0755); err != nil {
+		return nil, fmt.Errorf("create mod dir: %w", err)
+	}
+
+	relFiles, err := copyDirRecursive(folderPath, filesDir)
+	if err != nil {
+		_ = os.RemoveAll(modDir)
+		return nil, fmt.Errorf("copy folder: %w", err)
+	}
+
+	modTypes := DetectTypes(relFiles)
+	meta := &ModMeta{
+		ID:          id,
+		Name:        folderName,
+		ArchiveName: "",
+		ImportedAt:  time.Now(),
+		Types:       modTypes,
+		Files:       relFiles,
+	}
+	if err := SaveMeta(meta); err != nil {
+		return nil, fmt.Errorf("save meta: %w", err)
+	}
+	return meta, nil
+}
+
+// copyDirRecursive walks src and copies all files into dst, returning relative paths.
+func copyDirRecursive(src, dst string) ([]string, error) {
+	var relFiles []string
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		// Prevent path traversal.
+		if strings.Contains(filepath.ToSlash(rel), "..") {
+			return nil
+		}
+		dest := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(dest, 0755)
+		}
+		if err := copyFileOS(path, dest); err != nil {
+			return err
+		}
+		relFiles = append(relFiles, filepath.ToSlash(rel))
+		return nil
+	})
+	return relFiles, err
+}
+
 // makeModID derives a filesystem-safe unique ID from the archive filename.
 // Strips the extension and sanitises special characters.
 func makeModID(archiveName string) string {

@@ -155,6 +155,11 @@ func (p *Profile) RemoveMod(id string) {
 	p.Mods = filtered
 }
 
+// DeleteProfile removes a saved profile by name.
+func DeleteProfile(name string) error {
+	return os.Remove(ProfilePath(name))
+}
+
 // ListProfiles returns names of all saved profiles.
 func ListProfiles() ([]string, error) {
 	entries, err := os.ReadDir(config.ProfilesDir())

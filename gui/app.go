@@ -5,10 +5,12 @@ package gui
 import (
 	"context"
 	"fmt"
+	"os/exec"
 
 	"github.com/ITR-MOD/field-kit/internal/config"
 	"github.com/ITR-MOD/field-kit/internal/deploy"
 	"github.com/ITR-MOD/field-kit/internal/modmgr"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the Wails application struct. Methods on this type are automatically
@@ -200,4 +202,75 @@ func (a *App) Undeploy(gameID string) DeployResult {
 		return DeployResult{OK: false, Message: err.Error()}
 	}
 	return DeployResult{OK: true, Message: "undeploy complete"}
+}
+
+// ── Mod import / removal ──────────────────────────────────────────────────────
+
+// ImportModZip opens a file-picker dialog and imports the selected .zip as a mod.
+// Returns nil without error when the user cancels.
+func (a *App) ImportModZip() (*ModInfo, error) {
+	path, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Import Mod (.zip)",
+		Filters: []wailsRuntime.FileFilter{
+			{DisplayName: "Zip Archives (*.zip)", Pattern: "*.zip"},
+		},
+	})
+	if err != nil || path == "" {
+		return nil, err
+	}
+	m, err := modmgr.Import(path)
+	if err != nil {
+		return nil, err
+	}
+	info := modMetaToInfo(m)
+	return &info, nil
+}
+
+// ImportModFolder opens a directory-picker dialog and imports the selected folder as a mod.
+// Returns nil without error when the user cancels.
+func (a *App) ImportModFolder() (*ModInfo, error) {
+	path, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Import Mod Folder",
+	})
+	if err != nil || path == "" {
+		return nil, err
+	}
+	m, err := modmgr.ImportFolder(path)
+	if err != nil {
+		return nil, err
+	}
+	info := modMetaToInfo(m)
+	return &info, nil
+}
+
+// RemoveMod deletes a mod and all its cached files.
+func (a *App) RemoveMod(id string) error {
+	return modmgr.RemoveMod(id)
+}
+
+// ── Profile management ────────────────────────────────────────────────────────
+
+// DeleteProfile removes a saved profile by name.
+func (a *App) DeleteProfile(name string) error {
+	return modmgr.DeleteProfile(name)
+}
+
+// DuplicateProfile copies srcName into a new profile named newName.
+func (a *App) DuplicateProfile(srcName, newName string) error {
+	if newName == "" {
+		return fmt.Errorf("profile name cannot be empty")
+	}
+	src, err := modmgr.LoadProfile(srcName)
+	if err != nil {
+		return err
+	}
+	dup := &modmgr.Profile{Name: newName, Mods: append([]string{}, src.Mods...)}
+	return dup.Save()
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+
+// OpenFolder reveals a directory in the OS file manager.
+func (a *App) OpenFolder(path string) error {
+	return exec.Command("explorer", path).Start()
 }

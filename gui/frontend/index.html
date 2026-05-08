@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <title>ITR Field Kit</title>
   <link rel="stylesheet" href="assets/css/98.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "preact":       "./assets/js/preact.module.js",
+      "preact/hooks": "./assets/js/preact-hooks.module.js",
+      "htm":          "./assets/js/htm.module.js"
+    }
+  }
+  </script>
   <style>
     html, body { height:100%; margin:0; padding:0; overflow:hidden; background:silver; }
     body { display:flex; flex-direction:column; }
@@ -113,9 +122,9 @@
 <div id="app"></div>
 
 <script type="module">
-import { h, render } from 'https://esm.sh/preact@10';
-import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10/hooks';
-import htm from 'https://esm.sh/htm@3';
+import { h, render } from 'preact';
+import { useState, useEffect, useCallback } from 'preact/hooks';
+import htm from 'htm';
 const html = htm.bind(h);
 
 // ── Wails bridge ──────────────────────────────────────────────────────────────
@@ -162,6 +171,12 @@ const FALLBACK = {
   ProfileRemoveMod:   () => ({ ok:true }),
   Deploy:             () => ({ ok:true, message:'deploy complete (mock)' }),
   Undeploy:           () => ({ ok:true, message:'undeploy complete (mock)' }),
+  ImportModZip:       () => null,
+  ImportModFolder:    () => null,
+  RemoveMod:          () => null,
+  DeleteProfile:      () => null,
+  DuplicateProfile:   () => null,
+  OpenFolder:         () => null,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -260,7 +275,7 @@ function TabInstalls({ active, activeGameID, onActiveGameChange }) {
             <button class="default w100" disabled=${!d} onclick=${handleSetActive}>
               Set as Active Installation
             </button>
-            <button class="w100" disabled=${!d}>Open Install Folder</button>
+            <button class="w100" disabled=${!d} onclick=${() => d && call('OpenFolder', d.path)}>Open Install Folder</button>
             <button class="w100" disabled=${!d}>Validate Installation</button>
           </div>
         </fieldset>
@@ -287,6 +302,29 @@ function TabMods({ active }) {
 
   const d = sel !== null ? mods[sel] : null;
 
+  async function reloadMods() {
+    const data = await call('GetMods');
+    setMods(data || []);
+  }
+
+  async function handleImportZip() {
+    const m = await call('ImportModZip');
+    if (m) await reloadMods();
+  }
+
+  async function handleImportFolder() {
+    const m = await call('ImportModFolder');
+    if (m) await reloadMods();
+  }
+
+  async function handleRemoveMod() {
+    if (!d) return;
+    if (!confirm(`Remove mod "${d.name}" from library? This cannot be undone.`)) return;
+    await call('RemoveMod', d.id);
+    setSel(null);
+    await reloadMods();
+  }
+
   const visible = mods.filter(m =>
     !filter || m.name.toLowerCase().includes(filter.toLowerCase()) ||
     m.id.toLowerCase().includes(filter.toLowerCase())
@@ -305,8 +343,8 @@ function TabMods({ active }) {
         <label class="field-label" style="margin:0;white-space:nowrap">Filter:</label>
         <input type="text" placeholder="Search mods..." style="flex:1"
                value=${filter} oninput=${e => setFilter(e.target.value)} />
-        <button>Import .zip...</button>
-        <button>Import Folder...</button>
+        <button onclick=${handleImportZip}>Import .zip...</button>
+        <button onclick=${handleImportFolder}>Import Folder...</button>
       </div>
 
       <div class="three-one" style="flex:1;overflow:hidden;min-height:0">
@@ -354,7 +392,7 @@ function TabMods({ active }) {
             </table>
             <hr style="margin:8px 0 6px" />
             <div class="col">
-              <button class="w100">Remove Mod...</button>
+              <button class="w100" onclick=${handleRemoveMod}>Remove Mod...</button>
             </div>
           ` : html`
             <div class="c-dim" style="font-family:'Pixelated MS Sans Serif',Arial;font-size:11px;padding:4px">
@@ -376,6 +414,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
   const [mods, setMods] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selInProfile, setSelInProfile] = useState(null);
+  const [selAvail, setSelAvail] = useState(null);
 
   useEffect(() => {
     Promise.all([call('GetProfileNames'), call('GetMods')]).then(([names, allMods]) => {
@@ -403,6 +443,35 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
     if (!selName) return;
     await call('SetActiveProfile', selName);
     onActiveProfileChange(selName);
+  }
+
+  async function handleNewProfile() {
+    const name = prompt('Enter new profile name:');
+    if (!name?.trim()) return;
+    await call('NewProfile', name.trim());
+    const names = await call('GetProfileNames');
+    setProfileNames(names || []);
+    setSelName(name.trim());
+  }
+
+  async function handleDuplicate() {
+    if (!selName) return;
+    const name = prompt('New profile name:', selName + '_COPY');
+    if (!name?.trim()) return;
+    await call('DuplicateProfile', selName, name.trim());
+    const names = await call('GetProfileNames');
+    setProfileNames(names || []);
+    setSelName(name.trim());
+  }
+
+  async function handleDelete() {
+    if (!selName) return;
+    if (!confirm(`Delete profile "${selName}"? This cannot be undone.`)) return;
+    await call('DeleteProfile', selName);
+    const names = await call('GetProfileNames');
+    const n = names || [];
+    setProfileNames(n);
+    setSelName(n[0] ?? null);
   }
 
   async function handleRemoveMod(modID) {
@@ -441,9 +510,9 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
             }
           </fieldset>
           <div class="row" style="margin-top:2px;flex-shrink:0">
-            <button style="flex:1">New...</button>
-            <button style="flex:1">Duplicate</button>
-            <button style="flex:1">Delete...</button>
+            <button style="flex:1" onclick=${handleNewProfile}>New...</button>
+            <button style="flex:1" disabled=${!selName} onclick=${handleDuplicate}>Duplicate</button>
+            <button style="flex:1" disabled=${!selName} onclick=${handleDelete}>Delete...</button>
           </div>
         </div>
 
@@ -467,7 +536,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                         <thead><tr><th>Name</th><th>ID</th></tr></thead>
                         <tbody>
                           ${inProfile.map(m => html`
-                            <tr>
+                            <tr class=${selInProfile === m.id ? 'selected' : undefined}
+                                onclick=${() => setSelInProfile(m.id)}>
                               <td>${m.name}</td>
                               <td class="mono small">${m.id.slice(0,8)}</td>
                             </tr>
@@ -476,7 +546,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                       </table>
                     </div>
                     <button class="w100" style="margin-top:3px"
-                            onclick=${() => { /* needs selection state */ }}>
+                            disabled=${!selInProfile}
+                            onclick=${async () => { await handleRemoveMod(selInProfile); setSelInProfile(null); }}>
                       Remove from Profile
                     </button>
                   </div>
@@ -488,7 +559,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                         <thead><tr><th>Name</th><th>ID</th></tr></thead>
                         <tbody>
                           ${notInProfile.map(m => html`
-                            <tr>
+                            <tr class=${selAvail === m.id ? 'selected' : undefined}
+                                onclick=${() => setSelAvail(m.id)}>
                               <td>${m.name}</td>
                               <td class="mono small">${m.id.slice(0,8)}</td>
                             </tr>
@@ -497,7 +569,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                       </table>
                     </div>
                     <button class="w100" style="margin-top:3px"
-                            onclick=${() => { /* needs selection state */ }}>
+                            disabled=${!selAvail}
+                            onclick=${async () => { await handleAddMod(selAvail); setSelAvail(null); }}>
                       Add to Profile
                     </button>
                   </div>
