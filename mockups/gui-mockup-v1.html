@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ITR Field Kit — GUI Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&family=Roboto:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button { cursor: pointer; font: inherit; }
+    input  { font: inherit; }
+
+    /* ── Design Tokens ──────────────────────────────────────────────────── */
+    :root {
+      --bg:             #1A1C1E;
+      --surface:        #252829;
+      --surface-raised: #2E3235;
+      --border:         #3D4347;
+      --accent:         #4ECDC4;
+      --warning:        #F4A72A;
+      --danger:         #C0392B;
+      --success:        #27AE60;
+      --ash:            #5A6068;
+      --text-primary:   #E8EAE8;
+      --text-secondary: #9BA3A8;
+      --text-disabled:  #4D5359;
+
+      --font-display: 'Share Tech Mono', monospace;
+      --font-ui:      'Barlow Condensed', 'Oswald', sans-serif;
+      --font-body:    'Roboto', 'Source Sans 3', sans-serif;
+      --font-data:    'JetBrains Mono', 'Share Tech Mono', monospace;
+
+      --scanlines: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 1px,
+        rgba(0,0,0,0.08) 1px, rgba(0,0,0,0.08) 2px
+      );
+    }
+
+    /* ── Base ───────────────────────────────────────────────────────────── */
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 14px;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* ── App Header ─────────────────────────────────────────────────────── */
+    .app-header {
+      height: 48px;
+      flex-shrink: 0;
+      background: var(--surface);
+      background-image: var(--scanlines);
+      background-color: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 2px solid var(--accent);
+    }
+
+    .app-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+    }
+
+    .app-title-sub {
+      font-family: var(--font-data);
+      font-size: 11px;
+      color: var(--text-disabled);
+      margin-left: 14px;
+      letter-spacing: 0.04em;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-family: var(--font-data);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .header-meta-sep { color: var(--border); }
+    .header-meta .accent { color: var(--accent); }
+    .header-meta .warn   { color: var(--warning); }
+    .header-meta .dim    { color: var(--text-disabled); }
+
+    /* ── App Body ───────────────────────────────────────────────────────── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 176px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .nav-group-label {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-disabled);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 14px 12px 6px;
+    }
+
+    .nav-item {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 9px 12px;
+      border-left: 2px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      transition: background 80ms ease-in-out, color 80ms ease-in-out;
+    }
+
+    .nav-item:hover {
+      background: var(--surface-raised);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(78,205,196,0.07);
+    }
+
+    .nav-pip {
+      width: 5px;
+      height: 5px;
+      flex-shrink: 0;
+      background: var(--text-disabled);
+    }
+
+    .nav-item.active .nav-pip { background: var(--accent); }
+
+    .sidebar-spacer { flex: 1; }
+
+    /* ── Main Content ───────────────────────────────────────────────────── */
+    .main-content {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Tab Panels ─────────────────────────────────────────────────────── */
+    .tab-panel {
+      display: none;
+      flex: 1;
+      overflow: auto;
+      padding: 14px;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tab-panel.active { display: flex; }
+
+    /* ── Panel / Card ───────────────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .panel-header {
+      background: var(--surface-raised);
+      background-image: var(--scanlines);
+      background-color: var(--surface-raised);
+      border-bottom: 1px solid var(--border);
+      padding: 7px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 34px;
+    }
+
+    .panel-title {
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── Data Table ─────────────────────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table thead th {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: left;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .data-table tbody td {
+      padding: 8px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(61,67,71,0.45);
+      vertical-align: middle;
+    }
+
+    .data-table tbody tr:nth-child(even) td { background: #2A2D30; }
+
+    .data-table tbody tr:hover td {
+      background: var(--surface-raised);
+    }
+
+    .data-table tbody tr.selected td {
+      background: rgba(78,205,196,0.07);
+    }
+
+    .data-table tbody tr.selected td:first-child {
+      border-left: 2px solid var(--accent);
+      padding-left: 10px;
+    }
+
+    /* ── Utility classes ────────────────────────────────────────────────── */
+    .mono  { font-family: var(--font-data); font-size: 12px; }
+    .c-accent   { color: var(--accent); }
+    .c-warning  { color: var(--warning); }
+    .c-danger   { color: var(--danger); }
+    .c-success  { color: var(--success); }
+    .c-dim      { color: var(--text-secondary); }
+    .c-disabled { color: var(--text-disabled); }
+
+    /* ── Status Badge ───────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .badge-pip {
+      width: 5px;
+      height: 5px;
+      flex-shrink: 0;
+    }
+
+    .badge.s-ok       { color: var(--success); }
+    .badge.s-ok       .badge-pip { background: var(--success); }
+    .badge.s-warn     { color: var(--warning); }
+    .badge.s-warn     .badge-pip { background: var(--warning); }
+    .badge.s-danger   { color: var(--danger); }
+    .badge.s-danger   .badge-pip { background: var(--danger); }
+    .badge.s-inactive { color: var(--text-disabled); }
+    .badge.s-inactive .badge-pip { background: var(--text-disabled); }
+    .badge.s-accent   { color: var(--accent); }
+    .badge.s-accent   .badge-pip { background: var(--accent); }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    .btn {
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 6px 13px;
+      border: 1px solid;
+      border-radius: 0;
+      transition: background 80ms ease-in-out, color 80ms ease-in-out;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: rgba(78,205,196,0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent); color: var(--bg); }
+
+    .btn-secondary {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-secondary:hover { border-color: var(--ash); color: var(--text-primary); }
+
+    .btn-danger {
+      background: rgba(192,57,43,0.12);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger); color: var(--text-primary); }
+
+    .btn-disabled {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-disabled);
+      cursor: not-allowed;
+    }
+
+    .btn-sm { font-size: 10px; padding: 3px 8px; }
+
+    /* ── Input ──────────────────────────────────────────────────────────── */
+    .input-wrap { display: flex; flex-direction: column; gap: 4px; }
+
+    .input-label {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .input-field {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 0;
+      outline: none;
+      width: 100%;
+    }
+    .input-field:focus { border-color: var(--accent); }
+    .input-field::placeholder { color: var(--text-disabled); }
+
+    /* ── Info Row ───────────────────────────────────────────────────────── */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 12px;
+      border-bottom: 1px solid rgba(61,67,71,0.4);
+    }
+    .info-row:last-child { border-bottom: none; }
+
+    .info-label {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .info-value {
+      font-family: var(--font-data);
+      font-size: 12px;
+      color: var(--text-primary);
+      text-align: right;
+    }
+
+    /* ── Progress Bar ───────────────────────────────────────────────────── */
+    .progress-track {
+      background: var(--surface-raised);
+      height: 4px;
+      width: 100%;
+    }
+
+    .progress-fill {
+      height: 4px;
+      background: linear-gradient(to right, var(--accent), var(--success));
+    }
+
+    .progress-fill.p-warn {
+      background: linear-gradient(to right, var(--warning), var(--danger));
+    }
+
+    /* ── Log Area ───────────────────────────────────────────────────────── */
+    .log-area {
+      background: var(--bg);
+      font-family: var(--font-data);
+      font-size: 11.5px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      padding: 10px 12px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .log-area .lk { color: var(--success); }
+    .log-area .lw { color: var(--warning); }
+    .log-area .le { color: var(--danger); }
+    .log-area .li { color: var(--accent); }
+    .log-area .ld { color: var(--text-disabled); }
+
+    /* ── Toolbar ────────────────────────────────────────────────────────── */
+    .toolbar {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .toolbar-sep { flex: 1; }
+
+    /* ── Grid layouts ───────────────────────────────────────────────────── */
+    .g2   { display: grid; grid-template-columns: 1fr 1fr;  gap: 10px; }
+    .g3-1 { display: grid; grid-template-columns: 3fr 1fr;  gap: 10px; }
+    .g1-2 { display: grid; grid-template-columns: 1fr 2fr;  gap: 10px; }
+
+    /* ── Profile list item ──────────────────────────────────────────────── */
+    .profile-item {
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(61,67,71,0.4);
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-primary);
+      transition: background 80ms ease-in-out;
+    }
+    .profile-item:hover  { background: var(--surface-raised); }
+    .profile-item:last-child { border-bottom: none; }
+    .profile-item.active {
+      color: var(--accent);
+      background: rgba(78,205,196,0.07);
+      border-left: 2px solid var(--accent);
+      padding-left: 10px;
+    }
+
+    /* ── Status Bar ─────────────────────────────────────────────────────── */
+    .status-bar {
+      height: 26px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-text {
+      font-family: var(--font-data);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .status-text.ok  { color: var(--accent); }
+    .status-text.err { color: var(--danger); }
+
+    /* ── Scrollbar ──────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ash); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  APP HEADER                                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<header class="app-header">
+  <div>
+    <span class="app-title">ITR FIELD KIT</span>
+    <span class="app-title-sub">// FIELD MANAGEMENT SYSTEM &nbsp;·&nbsp; v0.4.0-snapshot</span>
+  </div>
+  <div class="header-meta">
+    <span>PROFILE: <span class="accent">DEFAULT</span></span>
+    <span class="header-meta-sep">|</span>
+    <span>GAME: <span class="accent">G-001</span></span>
+    <span class="header-meta-sep">|</span>
+    <span>SL: <span class="warn">03</span></span>
+    <span class="header-meta-sep">|</span>
+    <span class="dim">EXPLORER #73</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  BODY                                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="app-body">
+
+  <!-- ─── Sidebar ─────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="nav-group-label">Navigation</div>
+    <div class="nav-item active" onclick="switchTab('games', this)">
+      <div class="nav-pip"></div>Games
+    </div>
+    <div class="nav-item" onclick="switchTab('mods', this)">
+      <div class="nav-pip"></div>Mods
+    </div>
+    <div class="nav-item" onclick="switchTab('profiles', this)">
+      <div class="nav-pip"></div>Profiles
+    </div>
+    <div class="nav-item" onclick="switchTab('deploy', this)">
+      <div class="nav-pip"></div>Deploy
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="nav-group-label">System</div>
+    <div class="nav-item" onclick="switchTab('settings', this)">
+      <div class="nav-pip"></div>Settings
+    </div>
+  </nav>
+
+  <!-- ─── Main Content ─────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!--  TAB: GAMES                                                        -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-panel active" id="tab-games">
+
+      <!-- Game list -->
+      <div class="panel" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div class="panel-header">
+          <span class="panel-title">Registered Game Installations</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm">Auto-Detect</button>
+            <button class="btn btn-primary  btn-sm">+ Add</button>
+          </div>
+        </div>
+        <div style="overflow-y:auto;flex:1">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Label</th>
+                <th>Path</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="selected">
+                <td class="mono c-accent">G-001</td>
+                <td>Into The Radius 2</td>
+                <td class="mono c-dim" style="font-size:11px">C:\Program Files (x86)\Steam\steamapps\common\IntoTheRadius2</td>
+                <td class="mono">0.14.2</td>
+                <td><span class="badge s-ok"><span class="badge-pip"></span>Active</span></td>
+                <td><button class="btn btn-secondary btn-sm">Edit</button></td>
+              </tr>
+              <tr>
+                <td class="mono c-accent">G-002</td>
+                <td>Into The Radius 2 (Dev)</td>
+                <td class="mono c-dim" style="font-size:11px">D:\Games\ITR2-Dev</td>
+                <td class="mono">0.14.3-beta</td>
+                <td><span class="badge s-warn"><span class="badge-pip"></span>Beta</span></td>
+                <td><button class="btn btn-secondary btn-sm">Edit</button></td>
+              </tr>
+              <tr>
+                <td class="mono c-disabled">G-003</td>
+                <td class="c-dim">Into The Radius (Legacy)</td>
+                <td class="mono c-disabled" style="font-size:11px">E:\Archive\ITR1</td>
+                <td class="mono c-disabled">1.12.0</td>
+                <td><span class="badge s-inactive"><span class="badge-pip"></span>Inactive</span></td>
+                <td><button class="btn btn-secondary btn-sm">Edit</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detail / actions -->
+      <div class="g2" style="flex-shrink:0">
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Installation Detail — G-001</span></div>
+          <div class="info-row"><span class="info-label">Label</span>        <span class="info-value">Into The Radius 2</span></div>
+          <div class="info-row"><span class="info-label">Steam AppID</span>  <span class="info-value mono">2307350</span></div>
+          <div class="info-row"><span class="info-label">Install Path</span> <span class="info-value mono" style="font-size:11px">C:\...\IntoTheRadius2</span></div>
+          <div class="info-row"><span class="info-label">Mod Target</span>   <span class="info-value mono" style="font-size:11px">…\Paks\~mods\</span></div>
+          <div class="info-row"><span class="info-label">Active Profile</span><span class="info-value c-accent">DEFAULT</span></div>
+          <div class="info-row"><span class="info-label">Deployed Mods</span><span class="info-value c-accent mono">7</span></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Actions</span></div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:7px">
+            <button class="btn btn-primary"    style="width:100%">Set as Active Game</button>
+            <button class="btn btn-secondary"  style="width:100%">Open Install Folder</button>
+            <button class="btn btn-secondary"  style="width:100%">Validate Installation</button>
+            <button class="btn btn-danger"     style="width:100%;margin-top:6px">Remove Registration</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!--  TAB: MODS                                                         -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-panel" id="tab-mods">
+
+      <div class="toolbar">
+        <input class="input-field" style="width:260px" placeholder="Filter mods…" />
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-secondary">Import .zip</button>
+        <button class="btn btn-secondary">Import Folder</button>
+        <button class="btn btn-primary">+ Import</button>
+      </div>
+
+      <div class="g3-1" style="flex:1;overflow:hidden">
+
+        <!-- Mod list -->
+        <div class="panel" style="display:flex;flex-direction:column;overflow:hidden">
+          <div class="panel-header">
+            <span class="panel-title">Mod Library</span>
+            <span class="mono c-dim" style="font-size:11px">12 entries</span>
+          </div>
+          <div style="overflow-y:auto;flex:1">
+            <table class="data-table">
+              <thead>
+                <tr><th>Ref</th><th>Name</th><th>Version</th><th>Size</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                <tr class="selected">
+                  <td class="mono c-accent" style="font-size:11px">MOD-001</td>
+                  <td>AK-74 Retexture Pack</td>
+                  <td class="mono">1.2.0</td>
+                  <td class="mono c-dim">48 MB</td>
+                  <td><span class="badge s-ok"><span class="badge-pip"></span>Deployed</span></td>
+                </tr>
+                <tr>
+                  <td class="mono c-accent" style="font-size:11px">MOD-002</td>
+                  <td>Enhanced Anomaly VFX</td>
+                  <td class="mono">0.9.1</td>
+                  <td class="mono c-dim">112 MB</td>
+                  <td><span class="badge s-ok"><span class="badge-pip"></span>Deployed</span></td>
+                </tr>
+                <tr>
+                  <td class="mono c-accent" style="font-size:11px">MOD-003</td>
+                  <td>Realistic Weather System</td>
+                  <td class="mono">2.0.0</td>
+                  <td class="mono c-dim">23 MB</td>
+                  <td><span class="badge s-inactive"><span class="badge-pip"></span>Staged</span></td>
+                </tr>
+                <tr>
+                  <td class="mono c-accent" style="font-size:11px">MOD-004</td>
+                  <td>HD Facility Textures</td>
+                  <td class="mono">1.0.3</td>
+                  <td class="mono c-dim">340 MB</td>
+                  <td><span class="badge s-warn"><span class="badge-pip"></span>Conflict</span></td>
+                </tr>
+                <tr>
+                  <td class="mono c-accent" style="font-size:11px">MOD-005</td>
+                  <td>Stalker Radio Pack</td>
+                  <td class="mono">1.0.0</td>
+                  <td class="mono c-dim">8 MB</td>
+                  <td><span class="badge s-ok"><span class="badge-pip"></span>Deployed</span></td>
+                </tr>
+                <tr>
+                  <td class="mono c-disabled" style="font-size:11px">MOD-006</td>
+                  <td class="c-dim">Legacy Weapon Pack</td>
+                  <td class="mono c-disabled">0.7.0</td>
+                  <td class="mono c-disabled">67 MB</td>
+                  <td><span class="badge s-inactive"><span class="badge-pip"></span>Disabled</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Mod detail -->
+        <div class="panel" style="display:flex;flex-direction:column">
+          <div class="panel-header"><span class="panel-title">Mod Detail</span></div>
+          <div style="padding:10px 12px 6px">
+            <div style="font-family:var(--font-ui);font-size:16px;font-weight:700;color:var(--text-primary);letter-spacing:0.02em">AK-74 Retexture Pack</div>
+          </div>
+          <div class="info-row"><span class="info-label">Ref</span>     <span class="info-value mono c-accent">MOD-001</span></div>
+          <div class="info-row"><span class="info-label">Version</span> <span class="info-value mono">1.2.0</span></div>
+          <div class="info-row"><span class="info-label">Author</span>  <span class="info-value">stalker_dev</span></div>
+          <div class="info-row"><span class="info-label">Size</span>    <span class="info-value mono">48.3 MB</span></div>
+          <div class="info-row"><span class="info-label">Files</span>   <span class="info-value mono">3 .pak</span></div>
+          <div class="info-row"><span class="info-label">Status</span>  <span class="info-value"><span class="badge s-ok"><span class="badge-pip"></span>Deployed</span></span></div>
+          <div style="flex:1"></div>
+          <div style="padding:10px;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border)">
+            <button class="btn btn-danger"    style="width:100%">Undeploy</button>
+            <button class="btn btn-secondary" style="width:100%">Remove Mod</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!--  TAB: PROFILES                                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-panel" id="tab-profiles">
+      <div class="g1-2" style="flex:1;overflow:hidden">
+
+        <!-- Profile list -->
+        <div class="panel" style="display:flex;flex-direction:column;overflow:hidden">
+          <div class="panel-header">
+            <span class="panel-title">Profiles</span>
+            <button class="btn btn-primary btn-sm">+ New</button>
+          </div>
+          <div style="overflow-y:auto;flex:1">
+            <div class="profile-item active">
+              DEFAULT
+              <span class="badge s-ok"><span class="badge-pip"></span>Active</span>
+            </div>
+            <div class="profile-item">
+              PLAYTHROUGH_01
+              <span class="mono c-dim" style="font-size:11px">5 mods</span>
+            </div>
+            <div class="profile-item">
+              PERFORMANCE
+              <span class="mono c-dim" style="font-size:11px">2 mods</span>
+            </div>
+            <div class="profile-item">
+              SCREENSHOT_MODE
+              <span class="mono c-dim" style="font-size:11px">11 mods</span>
+            </div>
+          </div>
+          <div style="padding:8px;border-top:1px solid var(--border);display:flex;gap:6px">
+            <button class="btn btn-secondary" style="flex:1;font-size:11px">Duplicate</button>
+            <button class="btn btn-danger"    style="flex:1;font-size:11px">Delete</button>
+          </div>
+        </div>
+
+        <!-- Profile mod list -->
+        <div class="panel" style="display:flex;flex-direction:column;overflow:hidden">
+          <div class="panel-header">
+            <span class="panel-title">Profile: DEFAULT — Mod List</span>
+            <span class="mono c-accent" style="font-size:11px">7 mods · 612 MB</span>
+          </div>
+          <div style="overflow-y:auto;flex:1">
+            <table class="data-table">
+              <thead>
+                <tr><th>#</th><th>Mod</th><th>Version</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="mono c-dim">01</td><td>AK-74 Retexture Pack</td>       <td class="mono">1.2.0</td><td><span class="badge s-ok"><span class="badge-pip"></span>Enabled</span></td>   <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">02</td><td>Enhanced Anomaly VFX</td>        <td class="mono">0.9.1</td><td><span class="badge s-ok"><span class="badge-pip"></span>Enabled</span></td>   <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">03</td><td>HD Facility Textures</td>        <td class="mono">1.0.3</td><td><span class="badge s-warn"><span class="badge-pip"></span>Conflict</span></td> <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">04</td><td>Stalker Radio Pack</td>          <td class="mono">1.0.0</td><td><span class="badge s-ok"><span class="badge-pip"></span>Enabled</span></td>   <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">05</td><td>Overhaul Lighting</td>           <td class="mono">3.1.0</td><td><span class="badge s-ok"><span class="badge-pip"></span>Enabled</span></td>   <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">06</td><td>Realistic Weather System</td>    <td class="mono">2.0.0</td><td><span class="badge s-inactive"><span class="badge-pip"></span>Staged</span></td><td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+                <tr><td class="mono c-dim">07</td><td>Character Sound Overhaul</td>    <td class="mono">1.1.0</td><td><span class="badge s-ok"><span class="badge-pip"></span>Enabled</span></td>   <td><button class="btn btn-secondary btn-sm">✕</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:8px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center">
+            <button class="btn btn-secondary" style="font-size:11px">+ Add Mod</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-primary" style="font-size:11px">Deploy Profile</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!--  TAB: DEPLOY                                                       -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-panel" id="tab-deploy">
+
+      <div class="g2" style="flex-shrink:0">
+
+        <!-- Deploy config -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Deploy Configuration</span></div>
+          <div class="info-row"><span class="info-label">Target Game</span>    <span class="info-value c-accent">Into The Radius 2</span></div>
+          <div class="info-row"><span class="info-label">Game ID</span>        <span class="info-value mono c-dim">G-001</span></div>
+          <div class="info-row"><span class="info-label">Active Profile</span> <span class="info-value c-accent">DEFAULT</span></div>
+          <div class="info-row"><span class="info-label">Mod Count</span>      <span class="info-value mono">7</span></div>
+          <div class="info-row"><span class="info-label">Total Size</span>     <span class="info-value mono">612 MB</span></div>
+          <div class="info-row"><span class="info-label">Conflicts</span>      <span class="info-value c-warning">1 detected</span></div>
+          <div class="info-row"><span class="info-label">Last Deploy</span>    <span class="info-value mono c-dim">2026-05-07 14:33</span></div>
+        </div>
+
+        <!-- Status + controls -->
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Deploy Status</span></div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+                <span class="info-label">Overall Progress</span>
+                <span class="mono c-accent" style="font-size:11px">7 / 7</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+                <span class="info-label">Disk Usage</span>
+                <span class="mono c-dim" style="font-size:11px">612 MB / 2.1 GB</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width:29%"></div></div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn btn-primary" style="flex:1">Deploy</button>
+              <button class="btn btn-danger"  style="flex:1">Undeploy All</button>
+            </div>
+            <button class="btn btn-secondary" style="width:100%">Validate Deployment</button>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Operation log -->
+      <div class="panel" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:160px">
+        <div class="panel-header">
+          <span class="panel-title">Operation Log</span>
+          <button class="btn btn-secondary btn-sm">Clear</button>
+        </div>
+        <div class="log-area">
+          <div><span class="li">[2026-05-07 14:33:01]</span> DEPLOY INITIATED — PROFILE: DEFAULT → G-001</div>
+          <div><span class="lk">[14:33:01]</span> OK   MOD-001 → AK-74 Retexture Pack v1.2.0 (3 files)</div>
+          <div><span class="lk">[14:33:02]</span> OK   MOD-002 → Enhanced Anomaly VFX v0.9.1 (7 files)</div>
+          <div><span class="lw">[14:33:02]</span> WARN MOD-004 → HD Facility Textures: file collision on Facility_Wall_01.pak</div>
+          <div><span class="lk">[14:33:03]</span> OK   MOD-004 → HD Facility Textures v1.0.3 (override accepted, 14 files)</div>
+          <div><span class="lk">[14:33:03]</span> OK   MOD-005 → Stalker Radio Pack v1.0.0 (2 files)</div>
+          <div><span class="lk">[14:33:04]</span> OK   MOD-007 → Overhaul Lighting v3.1.0 (5 files)</div>
+          <div><span class="lk">[14:33:04]</span> OK   MOD-009 → Character Sound Overhaul v1.1.0 (4 files)</div>
+          <div><span class="li">[14:33:04]</span> DEPLOY COMPLETE — 7 mods, 35 files, 612 MB</div>
+          <div class="ld">_</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!--  TAB: SETTINGS                                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-panel" id="tab-settings">
+      <div class="g2">
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Application Settings</span></div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:14px">
+            <div class="input-wrap">
+              <label class="input-label">Config Directory</label>
+              <input class="input-field" value="C:\Users\User\AppData\Roaming\itr-field-kit\" />
+            </div>
+            <div class="input-wrap">
+              <label class="input-label">Default Profile</label>
+              <input class="input-field" value="DEFAULT" />
+            </div>
+            <div class="input-wrap">
+              <label class="input-label">Log Level</label>
+              <input class="input-field" value="INFO" />
+            </div>
+            <div style="display:flex;gap:8px;padding-top:4px">
+              <button class="btn btn-primary"   style="flex:1">Save</button>
+              <button class="btn btn-secondary" style="flex:1">Reset Defaults</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">About</span></div>
+          <div class="info-row"><span class="info-label">Application</span><span class="info-value mono">itr-field-kit</span></div>
+          <div class="info-row"><span class="info-label">Version</span>    <span class="info-value mono c-accent">v0.4.0</span></div>
+          <div class="info-row"><span class="info-label">Build</span>      <span class="info-value mono c-dim">snapshot</span></div>
+          <div class="info-row"><span class="info-label">Mode</span>       <span class="info-value"><span class="badge s-accent"><span class="badge-pip"></span>GUI</span></span></div>
+          <div class="info-row"><span class="info-label">Config</span>     <span class="info-value mono c-dim" style="font-size:11px">C:\Users\User\AppData\Roaming\itr-field-kit\config.json</span></div>
+          <div class="info-row"><span class="info-label">Go Runtime</span> <span class="info-value mono c-dim">go1.24.2</span></div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  STATUS BAR                                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<footer class="status-bar">
+  <span class="status-text ok">DEPLOYMENT COMPLETE — 7 MODS ACTIVE</span>
+  <span class="status-text">FIELD KIT v0.4.0 &nbsp;·&nbsp; UNPSC FIELD MANAGEMENT SYSTEM</span>
+</footer>
+
+<script>
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    el.classList.add('active');
+  }
+</script>
+</body>
+</html>

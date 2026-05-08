@@ -31,16 +31,24 @@ This document outlines the planned features for the itr-field-kit project. Each 
 
 ---
 
-## 3. GUI Mode Themed Off Windows 98
+## 3. GUI Mode — UNPSC Theme (ITR2-Inspired)
 - **Purpose:**
-  - Provide a graphical user interface inspired by Windows 98.
+  - Provide a graphical user interface themed after the UNPSC faction aesthetic from Into The Radius 2.
 - **Requirements:**
-  - Use [98.css](https://jdan.github.io/98.css/) for styling.
-  - Integrate with Wails for desktop app functionality.
-  - Replicate classic Win98 UI elements (windows, buttons, menus).
+  - Implement via Wails (Go backend + web frontend).
+  - Follow the UNPSC UI design spec in `.references/UNPSC_UI_Design_Doc.md`.
+  - Dark-first: `#1A1C1E` background, `#4ECDC4` teal primary accent, `#F4A72A` amber warning, `#C0392B` danger.
+  - Fonts: Share Tech Mono (headers/data), Barlow Condensed (UI labels/nav), Roboto (body).
+  - Squared corners (0–2px radius), hard 1px `#3D4347` borders — no rounded cards.
+  - Dense, left-aligned, structured column layouts (military inventory form density).
+  - CRT scan-line texture on terminal/header surfaces (CSS `repeating-linear-gradient`).
+  - ALL CAPS nav labels, terse bureaucratic copy tone.
+  - Allow switching between TUI and GUI modes via CLI flag.
 - **Implementation Notes:**
-  - Ensure accessibility and usability.
-  - Allow switching between CLI and GUI modes.
+  - Custom CSS — do NOT use 98.css or similar pre-built theme libraries.
+  - Design token reference: `.references/UNPSC_UI_Design_Doc.md` §11.
+  - TUI (ITR1 green phosphor) and GUI (ITR2 UNPSC steel/teal) are parallel modes, same Go backend.
+  - Wails bridges Go `internal/` packages directly to the frontend.
 
 ---
 

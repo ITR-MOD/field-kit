@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ITR Field Kit v0.4.0</title>
+  <link rel="stylesheet" href="assets/css/98.css">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: silver;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Preact mounts here — transparent to flex layout */
+    #app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* NOTE: Wails supports wails.io/v2 custom titlebar via
+       frameless window + --wails-draggable CSS. The .title-bar
+       block below can be wired to wails.Window.* calls directly. */
+
+    /* ── Menu Bar ───────────────────────────────────────────────────────── */
+    .menu-bar {
+      background: silver;
+      display: flex;
+      align-items: center;
+      padding: 1px 2px;
+      border-bottom: 1px solid #808080;
+      flex-shrink: 0;
+    }
+
+    .menu-item {
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+      padding: 2px 8px;
+      cursor: default;
+      color: #222;
+      user-select: none;
+    }
+
+    .menu-item:hover { background: navy; color: white; }
+
+    /* ── Toolbar ────────────────────────────────────────────────────────── */
+    .toolbar {
+      background: silver;
+      padding: 2px 4px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      border-bottom: 1px solid #808080;
+      flex-shrink: 0;
+    }
+
+    .toolbar button { min-width: 0; padding: 0 10px; min-height: 22px; font-size: 11px; }
+
+    .toolbar-sep {
+      display: inline-block;
+      width: 2px; height: 20px;
+      margin: 0 4px;
+      box-shadow: inset -1px 0 #fff, inset 1px 0 grey;
+    }
+
+    /* ── App Body ───────────────────────────────────────────────────────── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      background: silver;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 160px;
+      flex-shrink: 0;
+      background: white;
+      overflow-y: auto;
+      box-shadow: inset -1px 0 grey;
+      padding: 4px 2px;
+    }
+
+    ul.tree-view { background: transparent; padding: 0; margin: 0; }
+    ul.tree-view li { cursor: default; }
+
+    .nav-section-label {
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 4px 4px 2px;
+      color: #222;
+      user-select: none;
+    }
+
+    .nav-entry {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px 2px 14px;
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+      cursor: pointer;
+      color: #222;
+      user-select: none;
+    }
+
+    .nav-entry:hover  { background: navy; color: white; }
+    .nav-entry.active { background: navy; color: white; }
+
+    /* ── Content area ───────────────────────────────────────────────────── */
+    .content-area {
+      flex: 1;
+      overflow: auto;
+      padding: 6px;
+      background: silver;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Tab Panels ─────────────────────────────────────────────────────── */
+    .tab-panel { display: none; flex: 1; flex-direction: column; }
+    .tab-panel.active { display: flex; }
+
+    /* ── ListView ───────────────────────────────────────────────────────── */
+    .listview {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: inset 2px 2px #0a0a0a, inset -1px -1px #fff,
+                  inset 1px 1px grey, inset -2px -2px #dfdfdf;
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+    }
+
+    .listview thead th {
+      background: silver;
+      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff,
+                  inset -2px -2px grey, inset 2px 2px #dfdfdf;
+      padding: 2px 8px;
+      text-align: left;
+      font-weight: normal;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .listview thead th:active {
+      box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a,
+                  inset -2px -2px #dfdfdf, inset 2px 2px grey;
+    }
+
+    .listview tbody td {
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
+    .listview tbody tr:hover   td { background: navy; color: white; }
+    .listview tbody tr.selected td { background: navy; color: white; }
+
+    /* ── Detail table ───────────────────────────────────────────────────── */
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+    }
+
+    .detail-table td { padding: 2px 6px; vertical-align: top; }
+    .detail-table td:first-child { font-weight: bold; white-space: nowrap; width: 110px; }
+
+    .detail-table.no-sel td { color: grey; }
+
+    /* ── Log output ─────────────────────────────────────────────────────── */
+    .log-output {
+      background: black;
+      color: #c0c0c0;
+      font-family: "Courier New", monospace;
+      font-size: 11px;
+      padding: 4px 6px;
+      line-height: 1.65;
+      overflow-y: auto;
+      box-shadow: inset 2px 2px #0a0a0a, inset -1px -1px #fff,
+                  inset 1px 1px grey, inset -2px -2px #dfdfdf;
+    }
+
+    .log-output .lk { color: #00c000; }
+    .log-output .lw { color: yellow; }
+    .log-output .le { color: #ff4040; }
+    .log-output .li { color: #00c0c0; }
+    .log-output .ld { color: #606060; }
+
+    /* ── Progress bar ───────────────────────────────────────────────────── */
+    .progress-98 {
+      height: 18px;
+      background: white;
+      box-shadow: inset 2px 2px #0a0a0a, inset -1px -1px #fff,
+                  inset 1px 1px grey, inset -2px -2px #dfdfdf;
+      overflow: hidden;
+    }
+
+    .progress-98-fill {
+      height: 100%;
+      background: navy;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 10px;
+    }
+
+    /* ── Listbox ────────────────────────────────────────────────────────── */
+    .listbox {
+      background: white;
+      box-shadow: inset 2px 2px #0a0a0a, inset -1px -1px #fff,
+                  inset 1px 1px grey, inset -2px -2px #dfdfdf;
+      overflow-y: auto;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .listbox li {
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+      padding: 2px 6px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .listbox li:hover,
+    .listbox li.selected { background: navy; color: white; }
+
+    /* ── Helpers ────────────────────────────────────────────────────────── */
+    .row   { display: flex; align-items: center; gap: 4px; }
+    .col   { display: flex; flex-direction: column; gap: 4px; }
+    .two-col  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .three-one { display: grid; grid-template-columns: 1fr 170px; gap: 6px; }
+    .one-two  { display: grid; grid-template-columns: 180px 1fr; gap: 6px; }
+    .flex1 { flex: 1; }
+    .w100  { width: 100%; box-sizing: border-box; }
+    .mb4   { margin-bottom: 4px; }
+    .mb6   { margin-bottom: 6px; }
+    .small { font-size: 10px; }
+    .mono  { font-family: "Courier New", monospace; }
+    .c-dim { color: grey; }
+    .c-ok  { color: green; }
+    .c-warn { color: #c06000; }
+    .c-err  { color: red; }
+
+    fieldset { margin-bottom: 6px; }
+    legend   { font-weight: bold; }
+    button.w100 { min-width: 0; }
+
+    .field-label {
+      font-family: "Pixelated MS Sans Serif", Arial;
+      font-size: 11px;
+      margin-bottom: 2px;
+      display: block;
+    }
+
+    .status-bar { flex-shrink: 0; }
+
+    button.disabled, button[disabled] {
+      color: grey;
+      text-shadow: 1px 1px 0 #fff;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { h, render } from 'https://esm.sh/preact@10';
+import { useState }   from 'https://esm.sh/preact@10/hooks';
+import htm             from 'https://esm.sh/htm@3';
+const html = htm.bind(h);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Joins class names, filtering out falsy values. */
+function cx(...args) { return args.filter(Boolean).join(' ') || undefined; }
+
+// ── Static data ───────────────────────────────────────────────────────────────
+
+const INSTALLS = [
+  {
+    id: 'G-001', label: 'Into The Radius 2',
+    path: 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\IntoTheRadius2',
+    version: '0.14.2', status: 'Active',
+    appid: '2307350', target: '...\\Paks\\~mods\\', profile: 'DEFAULT', mods: '7',
+  },
+  {
+    id: 'G-002', label: 'Into The Radius 2 (Dev)',
+    path: 'D:\\Games\\ITR2-Dev',
+    version: '0.14.3-beta', status: 'Beta',
+    appid: '2307350', target: '...\\Paks\\~mods\\', profile: 'DEFAULT', mods: '0',
+  },
+  {
+    id: 'G-003', label: 'Into The Radius (Legacy)',
+    path: 'E:\\Archive\\ITR1',
+    version: '1.12.0', status: 'Inactive',
+    appid: '700030', target: '...\\Mods\\', profile: 'none', mods: '0', dim: true,
+  },
+];
+
+const MODS = [
+  { ref: 'MOD-001', name: 'AK-74 Retexture Pack',    version: '1.2.0', game: 'ITR2', gc: null,     size: '48 MB',  sizeD: '48.3 MB',  status: 'Deployed', sc: 'c-ok',   author: 'stalker_dev',  files: '3 .pak' },
+  { ref: 'MOD-002', name: 'Enhanced Anomaly VFX',     version: '0.9.1', game: 'ITR2', gc: null,     size: '112 MB', sizeD: '112.4 MB', status: 'Deployed', sc: 'c-ok',   author: 'vfx_artist',   files: '7 .pak' },
+  { ref: 'MOD-003', name: 'Realistic Weather System', version: '2.0.0', game: 'any',  gc: 'c-dim',  size: '23 MB',  sizeD: '23.1 MB',  status: 'Staged',   sc: 'c-dim',  author: 'modder_k',     files: '2 .pak' },
+  { ref: 'MOD-004', name: 'HD Facility Textures',     version: '1.0.3', game: 'ITR1', gc: 'c-warn', size: '340 MB', sizeD: '339.8 MB', status: 'Conflict', sc: 'c-warn', author: 'texture_pro',  files: '14 .pak', dim: false },
+  { ref: 'MOD-005', name: 'Stalker Radio Pack',       version: '1.0.0', game: 'any',  gc: 'c-dim',  size: '8 MB',   sizeD: '7.9 MB',   status: 'Deployed', sc: 'c-ok',   author: 'radio_fan',    files: '2 .pak' },
+  { ref: 'MOD-006', name: 'Legacy Weapon Pack',       version: '0.7.0', game: 'ITR1', gc: 'c-dim',  size: '67 MB',  sizeD: '67.2 MB',  status: 'Disabled', sc: 'c-dim',  author: 'legacy_user',  files: '9 .pak', dim: true },
+];
+
+const PROFILES = [
+  { name: 'DEFAULT',         count: 7,  active: true  },
+  { name: 'PLAYTHROUGH_01',  count: 5,  active: false },
+  { name: 'PERFORMANCE',     count: 2,  active: false },
+  { name: 'SCREENSHOT_MODE', count: 11, active: false },
+];
+
+const PROFILE_MODS = [
+  { n: '01', name: 'AK-74 Retexture Pack',    ver: '1.2.0', game: 'ITR2', gc: null,     status: 'Enabled',  sc: 'c-ok'   },
+  { n: '02', name: 'Enhanced Anomaly VFX',     ver: '0.9.1', game: 'ITR2', gc: null,     status: 'Enabled',  sc: 'c-ok'   },
+  { n: '03', name: 'HD Facility Textures',     ver: '1.0.3', game: 'ITR1', gc: 'c-warn', status: 'Conflict', sc: 'c-warn' },
+  { n: '04', name: 'Stalker Radio Pack',       ver: '1.0.0', game: 'any',  gc: 'c-dim',  status: 'Enabled',  sc: 'c-ok'   },
+  { n: '05', name: 'Overhaul Lighting',        ver: '3.1.0', game: 'ITR2', gc: null,     status: 'Enabled',  sc: 'c-ok'   },
+  { n: '06', name: 'Realistic Weather System', ver: '2.0.0', game: 'any',  gc: 'c-dim',  status: 'Staged',   sc: 'c-dim'  },
+  { n: '07', name: 'Character Sound Overhaul', ver: '1.1.0', game: 'any',  gc: 'c-dim',  status: 'Enabled',  sc: 'c-ok'   },
+];
+
+const AVAIL_MODS = [
+  { name: 'Legacy Weapon Pack',  ver: '0.7.0' },
+  { name: 'Sound Overhaul Lite', ver: '1.0.0' },
+  { name: 'NPC Retexture',       ver: '0.3.2' },
+];
+
+// ── Tab: Installations ────────────────────────────────────────────────────────
+
+function TabInstalls({ active }) {
+  const [sel, setSel] = useState(null);
+  const d    = sel !== null ? INSTALLS[sel] : null;
+  const hasSel = d !== null;
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-installs">
+
+      <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+        <legend>Registered Installations</legend>
+        <div class="row mb4" style="justify-content:flex-end">
+          <button>Auto-Detect</button>
+          <button>Add...</button>
+          <button disabled=${!hasSel}>Edit</button>
+          <button disabled=${!hasSel}>Remove...</button>
+        </div>
+        <div style="flex:1;overflow-y:auto">
+          <table class="listview">
+            <thead>
+              <tr><th>ID</th><th>Label</th><th>Path</th><th>Version</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              ${INSTALLS.map((inst, i) => html`
+                <tr class=${sel === i ? 'selected' : undefined} onclick=${() => setSel(i)}>
+                  <td class=${cx('mono', inst.dim && 'c-dim')}>${inst.id}</td>
+                  <td class=${cx(inst.dim && 'c-dim')}>${inst.label}</td>
+                  <td class=${cx('mono', 'small', inst.dim && 'c-dim')}>${inst.path}</td>
+                  <td class=${cx('mono', inst.dim && 'c-dim')}>${inst.version}</td>
+                  <td class=${cx(inst.dim && 'c-dim')}>${inst.status}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
+      </fieldset>
+
+      <div class="two-col" style="flex-shrink:0">
+        <fieldset>
+          <legend>Installation Detail</legend>
+          <table class=${cx('detail-table', !hasSel && 'no-sel')}>
+            <tr><td>Label:</td>          <td>${hasSel ? d.label   : '--'}</td></tr>
+            <tr><td>Steam AppID:</td>    <td class="mono">${hasSel ? d.appid   : '--'}</td></tr>
+            <tr><td>Install Path:</td>   <td class="mono small">${hasSel ? d.path    : '--'}</td></tr>
+            <tr><td>Mod Target:</td>     <td class="mono small">${hasSel ? d.target  : '--'}</td></tr>
+            <tr><td>Active Profile:</td> <td>${hasSel ? d.profile  : '--'}</td></tr>
+            <tr><td>Deployed Mods:</td>  <td>${hasSel ? d.mods     : '--'}</td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="col" style="padding:2px 0">
+            <button class="default w100" disabled=${!hasSel}>Set as Active Installation</button>
+            <button class="w100" disabled=${!hasSel}>Open Install Folder</button>
+            <button class="w100" disabled=${!hasSel}>Validate Installation</button>
+          </div>
+        </fieldset>
+      </div>
+
+    </div>
+  `;
+}
+
+// ── Tab: Mods ─────────────────────────────────────────────────────────────────
+
+function TabMods({ active }) {
+  const [sel, setSel] = useState(0);
+  const d = MODS[sel];
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-mods">
+
+      <div class="row mb4">
+        <label class="field-label" style="margin:0;white-space:nowrap">Filter:</label>
+        <input type="text" placeholder="Search mods..." style="flex:1" />
+        <button>Import .zip...</button>
+        <button>Import Folder...</button>
+      </div>
+
+      <div class="three-one" style="flex:1;overflow:hidden;min-height:0">
+
+        <fieldset style="margin:0;display:flex;flex-direction:column;overflow:hidden">
+          <legend>Mod Library</legend>
+          <div style="flex:1;overflow-y:auto">
+            <table class="listview">
+              <thead>
+                <tr><th>Ref</th><th>Name</th><th>Version</th><th>Game</th><th>Size</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                ${MODS.map((m, i) => html`
+                  <tr class=${sel === i ? 'selected' : undefined} onclick=${() => setSel(i)}>
+                    <td class=${cx('mono', m.dim && 'c-dim')}>${m.ref}</td>
+                    <td class=${cx(m.dim && 'c-dim')}>${m.name}</td>
+                    <td class=${cx('mono', m.dim && 'c-dim')}>${m.version}</td>
+                    <td class=${cx(m.gc, m.dim && 'c-dim')}>${m.game}</td>
+                    <td class=${cx('mono', m.dim && 'c-dim')}>${m.size}</td>
+                    <td class=${cx(m.sc, m.dim && 'c-dim')}>${m.status}</td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        </fieldset>
+
+        <fieldset style="margin:0;display:flex;flex-direction:column">
+          <legend>Mod Detail</legend>
+          <div style="font-family:'Pixelated MS Sans Serif',Arial;font-size:12px;font-weight:bold;margin-bottom:6px">
+            ${d.name}
+          </div>
+          <table class="detail-table">
+            <tr><td>Ref:</td>     <td class="mono">${d.ref}</td></tr>
+            <tr><td>Version:</td> <td class="mono">${d.version}</td></tr>
+            <tr><td>Game:</td>    <td class=${cx(d.gc)}>${d.game}</td></tr>
+            <tr><td>Author:</td>  <td>${d.author}</td></tr>
+            <tr><td>Size:</td>    <td class="mono">${d.sizeD}</td></tr>
+            <tr><td>Files:</td>   <td class="mono">${d.files}</td></tr>
+            <tr><td>Status:</td>  <td class=${d.sc}>${d.status}</td></tr>
+          </table>
+          <div class="field-label" style="margin-top:6px">Target Game:</div>
+          <input type="text" class="w100" value=${d.game} style="margin-bottom:6px" />
+          <hr style="margin:4px 0 6px" />
+          <div class="col">
+            <button class="w100">Undeploy</button>
+            <button class="w100">Remove Mod...</button>
+          </div>
+        </fieldset>
+
+      </div>
+    </div>
+  `;
+}
+
+// ── Tab: Profiles ─────────────────────────────────────────────────────────────
+
+function TabProfiles({ active }) {
+  const [selProf, setSelProf] = useState(0);
+  const [editMode, setEditMode] = useState(false);
+  const p = PROFILES[selProf];
+
+  function selectProfile(i) {
+    setSelProf(i);
+    setEditMode(false);
+  }
+
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-profiles">
+      <div class="one-two" style="flex:1;overflow:hidden;min-height:0">
+
+        <!-- Left: profile list -->
+        <div style="display:flex;flex-direction:column;overflow:hidden">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <legend>Profiles</legend>
+            <ul class="listbox flex1">
+              ${PROFILES.map((prof, i) => html`
+                <li class=${selProf === i ? 'selected' : undefined} onclick=${() => selectProfile(i)}>
+                  ${prof.name}
+                  <span class=${cx('small', !prof.active && 'c-dim')}>
+                    ${prof.active ? '[active]' : prof.count + ' mods'}
+                  </span>
+                </li>
+              `)}
+            </ul>
+          </fieldset>
+          <div class="row" style="margin-top:2px;flex-shrink:0">
+            <button style="flex:1">New...</button>
+            <button style="flex:1">Duplicate</button>
+            <button style="flex:1">Delete...</button>
+          </div>
+        </div>
+
+        <!-- Right: mod list for selected profile -->
+        <div style="display:flex;flex-direction:column;overflow:hidden">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+            <legend>
+              Profile: ${p.name}${' '}
+              <span class="small">${p.count} mods${p.active ? ' [active]' : ''}</span>
+            </legend>
+
+            ${editMode ? html`
+              <!-- Edit mode -->
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <div class="two-col" style="flex:1;overflow:hidden;min-height:0">
+
+                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                    <div class="field-label">In Profile:</div>
+                    <div style="flex:1;overflow-y:auto">
+                      <table class="listview">
+                        <thead><tr><th>#</th><th>Name</th><th>Ver.</th></tr></thead>
+                        <tbody>
+                          ${PROFILE_MODS.map(m => html`
+                            <tr>
+                              <td class="mono">${m.n}</td>
+                              <td>${m.name}</td>
+                              <td class="mono">${m.ver}</td>
+                            </tr>
+                          `)}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button class="w100" style="margin-top:3px">Remove from Profile</button>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                    <div class="field-label">Available (not in profile):</div>
+                    <div style="flex:1;overflow-y:auto">
+                      <table class="listview">
+                        <thead><tr><th>Name</th><th>Ver.</th></tr></thead>
+                        <tbody>
+                          ${AVAIL_MODS.map(m => html`
+                            <tr><td>${m.name}</td><td class="mono">${m.ver}</td></tr>
+                          `)}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button class="w100" style="margin-top:3px">Add to Profile</button>
+                  </div>
+
+                </div>
+                <div class="row" style="margin-top:6px;flex-shrink:0;justify-content:flex-end">
+                  <button onclick=${() => setEditMode(false)}>Done</button>
+                </div>
+              </div>
+            ` : html`
+              <!-- View mode -->
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <div style="flex:1;overflow-y:auto">
+                  <table class="listview">
+                    <thead>
+                      <tr><th>#</th><th>Mod Name</th><th>Version</th><th>Game</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                      ${PROFILE_MODS.map(m => html`
+                        <tr>
+                          <td class="mono">${m.n}</td>
+                          <td>${m.name}</td>
+                          <td class="mono">${m.ver}</td>
+                          <td class=${cx(m.gc)}>${m.game}</td>
+                          <td class=${m.sc}>${m.status}</td>
+                        </tr>
+                      `)}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="row" style="margin-top:4px;flex-shrink:0;justify-content:space-between">
+                  <button onclick=${() => setEditMode(true)}>Edit Profile...</button>
+                  <button class="default">Deploy Profile</button>
+                </div>
+              </div>
+            `}
+
+          </fieldset>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+// ── Tab: Deploy ───────────────────────────────────────────────────────────────
+
+function TabDeploy({ active }) {
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-deploy">
+      <div class="two-col mb6">
+        <fieldset>
+          <legend>Deploy Configuration</legend>
+          <table class="detail-table">
+            <tr><td>Target Game:</td>   <td><strong>Into The Radius 2</strong></td></tr>
+            <tr><td>Game ID:</td>       <td class="mono">G-001</td></tr>
+            <tr><td>Install Ver.:</td>  <td class="mono">0.14.2</td></tr>
+            <tr><td>Profile:</td>       <td><strong>DEFAULT</strong></td></tr>
+            <tr><td>Mod Count:</td>     <td class="mono">7</td></tr>
+            <tr><td>Total Size:</td>    <td class="mono">612 MB</td></tr>
+            <tr><td>Conflicts:</td>     <td class="c-warn">1 detected</td></tr>
+            <tr><td>Game Mismatch:</td> <td class="c-warn">1 mod targets ITR1</td></tr>
+            <tr><td>Last Deploy:</td>   <td class="mono small">2026-05-07 14:33</td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Deploy Status</legend>
+          <div class="col">
+            <div>
+              <div class="row mb4" style="justify-content:space-between">
+                <span style="font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Overall Progress</span>
+                <span class="mono small">7 / 7</span>
+              </div>
+              <div class="progress-98"><div class="progress-98-fill" style="width:100%">100%</div></div>
+            </div>
+            <div>
+              <div class="row mb4" style="justify-content:space-between">
+                <span style="font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Disk Usage</span>
+                <span class="mono small">612 MB / 2.1 GB</span>
+              </div>
+              <div class="progress-98"><div class="progress-98-fill" style="width:29%">29%</div></div>
+            </div>
+            <div class="row" style="margin-top:4px">
+              <button class="default" style="flex:1">Deploy</button>
+              <button style="flex:1">Undeploy All...</button>
+            </div>
+            <button>Validate Deployment</button>
+          </div>
+        </fieldset>
+      </div>
+      <fieldset style="flex:1;display:flex;flex-direction:column">
+        <legend>Operation Log</legend>
+        <div class="row mb4" style="justify-content:flex-end"><button>Clear</button></div>
+        <div class="log-output flex1" style="min-height:120px">
+          <div><span class="li">[2026-05-07 14:33:01]</span> DEPLOY INITIATED -- PROFILE: DEFAULT -> G-001</div>
+          <div><span class="lw">[14:33:01]</span> WARN MOD-004 -> HD Facility Textures: targets ITR1, active installation is ITR2</div>
+          <div><span class="lk">[14:33:01]</span> OK   MOD-001 -> AK-74 Retexture Pack v1.2.0 (3 files)</div>
+          <div><span class="lk">[14:33:02]</span> OK   MOD-002 -> Enhanced Anomaly VFX v0.9.1 (7 files)</div>
+          <div><span class="lw">[14:33:02]</span> WARN MOD-004 -> HD Facility Textures: file collision on Facility_Wall_01.pak</div>
+          <div><span class="lk">[14:33:03]</span> OK   MOD-004 -> HD Facility Textures v1.0.3 (override accepted, 14 files)</div>
+          <div><span class="lk">[14:33:03]</span> OK   MOD-005 -> Stalker Radio Pack v1.0.0 (2 files)</div>
+          <div><span class="lk">[14:33:04]</span> OK   MOD-007 -> Overhaul Lighting v3.1.0 (5 files)</div>
+          <div><span class="lk">[14:33:04]</span> OK   MOD-009 -> Character Sound Overhaul v1.1.0 (4 files)</div>
+          <div><span class="li">[14:33:04]</span> DEPLOY COMPLETE -- 7 mods, 35 files, 612 MB</div>
+          <div class="ld">_</div>
+        </div>
+      </fieldset>
+    </div>
+  `;
+}
+
+// ── Tab: Settings ─────────────────────────────────────────────────────────────
+
+function TabSettings({ active }) {
+  return html`
+    <div class=${cx('tab-panel', active && 'active')} id="tab-settings">
+      <div class="two-col">
+        <fieldset>
+          <legend>Application Settings</legend>
+          <div class="col">
+            <div>
+              <label class="field-label">Config Directory:</label>
+              <input type="text" class="w100" value="C:\\Users\\User\\AppData\\Roaming\\itr-field-kit\\" />
+            </div>
+            <div>
+              <label class="field-label">Default Profile:</label>
+              <input type="text" class="w100" value="DEFAULT" />
+            </div>
+            <div>
+              <label class="field-label">Log Level:</label>
+              <input type="text" class="w100" value="INFO" />
+            </div>
+            <hr />
+            <div class="row">
+              <button class="default" style="flex:1">Save</button>
+              <button style="flex:1">Reset Defaults</button>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>About ITR Field Kit</legend>
+          <table class="detail-table">
+            <tr><td>Application:</td> <td class="mono">itr-field-kit</td></tr>
+            <tr><td>Version:</td>     <td class="mono"><strong>v0.4.0</strong></td></tr>
+            <tr><td>Build:</td>       <td class="mono">snapshot</td></tr>
+            <tr><td>Mode:</td>        <td>GUI</td></tr>
+            <tr><td>Go Runtime:</td>  <td class="mono">go1.24.2</td></tr>
+            <tr><td>Config:</td>      <td class="mono small">C:\\Users\\User\\AppData\\Roaming\\itr-field-kit\\config.json</td></tr>
+          </table>
+        </fieldset>
+      </div>
+    </div>
+  `;
+}
+
+// ── App Shell ─────────────────────────────────────────────────────────────────
+
+const TAB_LABELS = {
+  installs: 'Installations',
+  mods:     'Mods',
+  profiles: 'Profiles',
+  deploy:   'Deploy',
+  settings: 'Settings',
+};
+
+function App() {
+  const [tab, setTab] = useState('installs');
+
+  return html`
+    <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+
+      <!-- Title bar (Wails: wire to runtime.WindowMinimise / Maximise / Quit) -->
+      <div class="title-bar">
+        <div class="title-bar-text">ITR Field Kit - Field Management System v0.4.0</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize"></button>
+          <button aria-label="Maximize"></button>
+          <button aria-label="Close"></button>
+        </div>
+      </div>
+
+      <!-- Menu bar -->
+      <div class="menu-bar">
+        <span class="menu-item"><u>F</u>ile</span>
+        <span class="menu-item"><u>E</u>dit</span>
+        <span class="menu-item"><u>V</u>iew</span>
+        <span class="menu-item"><u>P</u>rofile</span>
+        <span class="menu-item"><u>T</u>ools</span>
+        <span class="menu-item"><u>H</u>elp</span>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button onclick=${() => setTab('installs')}>Installations</button>
+        <button onclick=${() => setTab('mods')}>Mods</button>
+        <button onclick=${() => setTab('profiles')}>Profiles</button>
+        <div class="toolbar-sep"></div>
+        <button class="default" onclick=${() => setTab('deploy')}>Deploy</button>
+        <button>Undeploy All</button>
+        <div class="toolbar-sep"></div>
+        <button onclick=${() => setTab('settings')}>Settings</button>
+      </div>
+
+      <!-- Body: sidebar + content -->
+      <div class="app-body">
+
+        <!-- Sidebar -->
+        <nav class="sidebar">
+          <ul class="tree-view">
+            <li>
+              <div class="nav-section-label">[ ITR Field Kit ]</div>
+              <ul>
+                ${['installs', 'mods', 'profiles', 'deploy'].map(t => html`
+                  <li>
+                    <div class=${cx('nav-entry', tab === t && 'active')} onclick=${() => setTab(t)}>
+                      ${TAB_LABELS[t]}
+                    </div>
+                  </li>
+                `)}
+              </ul>
+            </li>
+            <li>
+              <div class="nav-section-label">[ System ]</div>
+              <ul>
+                <li>
+                  <div class=${cx('nav-entry', tab === 'settings' && 'active')} onclick=${() => setTab('settings')}>
+                    Settings
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Content area — all tabs always mounted, CSS shows/hides active one -->
+        <div class="content-area">
+          <${TabInstalls} active=${tab === 'installs'} />
+          <${TabMods}     active=${tab === 'mods'}     />
+          <${TabProfiles} active=${tab === 'profiles'} />
+          <${TabDeploy}   active=${tab === 'deploy'}   />
+          <${TabSettings} active=${tab === 'settings'} />
+        </div>
+
+      </div>
+
+      <!-- Status bar -->
+      <div class="status-bar">
+        <p class="status-bar-field">Deployment complete -- 7 mods active</p>
+        <p class="status-bar-field" style="max-width:200px">Profile: DEFAULT | Game: G-001</p>
+        <p class="status-bar-field" style="max-width:80px">v0.4.0</p>
+      </div>
+
+    </div>
+  `;
+}
+
+render(html`<${App} />`, document.getElementById('app'));
+</script>
+</body>
+</html>
