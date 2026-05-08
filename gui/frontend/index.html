@@ -21,12 +21,6 @@
     /* NOTE: Wails frameless window: wire .title-bar-controls to
        runtime.WindowMinimise / Maximise / Quit via window.runtime.* */
 
-    .menu-bar { background:silver; display:flex; align-items:center; padding:1px 2px;
-                border-bottom:1px solid #808080; flex-shrink:0; }
-    .menu-item { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
-                 padding:2px 8px; cursor:default; color:#222; user-select:none; }
-    .menu-item:hover { background:navy; color:white; }
-
     .toolbar { background:silver; padding:2px 4px; display:flex; align-items:center;
                gap:2px; border-bottom:1px solid #808080; flex-shrink:0; }
     .toolbar button { min-width:0; padding:0 10px; min-height:22px; font-size:11px; }
@@ -35,8 +29,10 @@
 
     .app-body { display:flex; flex:1; overflow:hidden; background:silver; }
 
-    .sidebar { width:160px; flex-shrink:0; background:white; overflow-y:auto;
-               box-shadow:inset -1px 0 grey; padding:4px 2px; }
+    .sidebar { width:160px; flex-shrink:0; background:white; display:flex; flex-direction:column;
+               box-shadow:inset -1px 0 grey; overflow:hidden; }
+    .sidebar-nav { flex:1; overflow-y:auto; padding:4px 2px; }
+    .sidebar-actions { flex-shrink:0; border-top:1px solid #808080; padding:4px 4px; display:flex; flex-direction:column; gap:3px; }
     ul.tree-view { background:transparent; padding:0; margin:0; }
     ul.tree-view li { cursor:default; }
     .nav-section-label { font-family:"Pixelated MS Sans Serif",Arial; font-size:11px;
@@ -65,10 +61,11 @@
     .listview tbody tr:hover td { background:navy; color:white; }
     .listview tbody tr.selected td { background:navy; color:white; }
 
-    .detail-table { width:100%; border-collapse:collapse;
+    .detail-table { width:100%; border-collapse:collapse; table-layout:fixed;
       font-family:"Pixelated MS Sans Serif",Arial; font-size:11px; }
-    .detail-table td { padding:2px 6px; vertical-align:top; }
-    .detail-table td:first-child { font-weight:bold; white-space:nowrap; width:110px; }
+    .detail-table td { padding:2px 6px; vertical-align:top; overflow:hidden; }
+    .detail-table td:first-child { font-weight:bold; white-space:nowrap; width:90px; }
+    .detail-table td:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .detail-table.no-sel td { color:grey; }
 
     .log-output { background:black; color:#c0c0c0; font-family:"Courier New",monospace;
@@ -96,8 +93,8 @@
     .row   { display:flex; align-items:center; gap:4px; }
     .col   { display:flex; flex-direction:column; gap:4px; }
     .two-col   { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    .three-one { display:grid; grid-template-columns:1fr 170px; gap:6px; }
-    .one-two   { display:grid; grid-template-columns:180px 1fr; gap:6px; }
+    .three-one { display:grid; grid-template-columns:1fr 210px; gap:6px; }
+    .one-two   { display:grid; grid-template-columns:175px 1fr; gap:6px; }
     .flex1 { flex:1; }
     .w100  { width:100%; box-sizing:border-box; }
     .mb4   { margin-bottom:4px; }
@@ -377,7 +374,7 @@ function TabMods({ active }) {
           </div>
         </fieldset>
 
-        <fieldset style="margin:0;display:flex;flex-direction:column">
+        <fieldset style="margin:0;display:flex;flex-direction:column;overflow:hidden;min-height:0">
           <legend>Mod Detail</legend>
           ${d ? html`
             <div style="font-family:'Pixelated MS Sans Serif',Arial;font-size:12px;font-weight:bold;margin-bottom:6px">
@@ -491,8 +488,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
       <div class="one-two" style="flex:1;overflow:hidden;min-height:0">
 
         <!-- Left: profile list -->
-        <div style="display:flex;flex-direction:column;overflow:hidden">
-          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;margin-bottom:0">
             <legend>Profiles</legend>
             ${loading
               ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
@@ -517,8 +514,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
         </div>
 
         <!-- Right: mod list for selected profile -->
-        <div style="display:flex;flex-direction:column;overflow:hidden">
-          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;margin:0">
             <legend>
               Profile: ${selName || '--'}${' '}
               <span class="small">${inProfile.length} mods</span>
@@ -526,12 +523,12 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
 
             ${editMode ? html`
               <!-- Edit mode -->
-              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
                 <div class="two-col" style="flex:1;overflow:hidden;min-height:0">
 
-                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
                     <div class="field-label">In Profile:</div>
-                    <div style="flex:1;overflow-y:auto">
+                    <div style="flex:1;overflow-y:auto;min-height:0">
                       <table class="listview">
                         <thead><tr><th>Name</th><th>ID</th></tr></thead>
                         <tbody>
@@ -552,9 +549,9 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                     </button>
                   </div>
 
-                  <div style="display:flex;flex-direction:column;overflow:hidden">
+                <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
                     <div class="field-label">Available (not in profile):</div>
-                    <div style="flex:1;overflow-y:auto">
+                    <div style="flex:1;overflow-y:auto;min-height:0">
                       <table class="listview">
                         <thead><tr><th>Name</th><th>ID</th></tr></thead>
                         <tbody>
@@ -786,52 +783,47 @@ function App() {
         </div>
       </div>
 
-      <div class="menu-bar">
-        <span class="menu-item"><u>F</u>ile</span>
-        <span class="menu-item"><u>E</u>dit</span>
-        <span class="menu-item"><u>V</u>iew</span>
-        <span class="menu-item"><u>P</u>rofile</span>
-        <span class="menu-item"><u>T</u>ools</span>
-        <span class="menu-item"><u>H</u>elp</span>
-      </div>
-
       <div class="toolbar">
-        <button onclick=${() => setTab('installs')}>Installations</button>
-        <button onclick=${() => setTab('mods')}>Mods</button>
-        <button onclick=${() => setTab('profiles')}>Profiles</button>
-        <div class="toolbar-sep"></div>
         <button class="default" onclick=${() => { setTab('deploy'); handleQuickDeploy(); }}>Deploy</button>
         <button onclick=${handleQuickUndeploy}>Undeploy All</button>
-        <div class="toolbar-sep"></div>
-        <button onclick=${() => setTab('settings')}>Settings</button>
       </div>
 
       <div class="app-body">
         <nav class="sidebar">
-          <ul class="tree-view">
-            <li>
-              <div class="nav-section-label">[ ITR Field Kit ]</div>
-              <ul>
-                ${['installs','mods','profiles','deploy'].map(t => html`
+          <div class="sidebar-nav">
+            <ul class="tree-view">
+              <li>
+                <div class="nav-section-label">[ ITR Field Kit ]</div>
+                <ul>
+                  ${['installs','mods','profiles','deploy'].map(t => html`
+                    <li>
+                      <div class=${cx('nav-entry', tab === t && 'active')} onclick=${() => setTab(t)}>
+                        ${TAB_LABELS[t]}
+                      </div>
+                    </li>
+                  `)}
+                </ul>
+              </li>
+              <li>
+                <div class="nav-section-label">[ System ]</div>
+                <ul>
                   <li>
-                    <div class=${cx('nav-entry', tab === t && 'active')} onclick=${() => setTab(t)}>
-                      ${TAB_LABELS[t]}
+                    <div class=${cx('nav-entry', tab === 'settings' && 'active')} onclick=${() => setTab('settings')}>
+                      Settings
                     </div>
                   </li>
-                `)}
-              </ul>
-            </li>
-            <li>
-              <div class="nav-section-label">[ System ]</div>
-              <ul>
-                <li>
-                  <div class=${cx('nav-entry', tab === 'settings' && 'active')} onclick=${() => setTab('settings')}>
-                    Settings
-                  </div>
-                </li>
-              </ul>
-            </li>
-          </ul>
+                </ul>
+              </li>
+            </ul>
+          </div>
+          <div class="sidebar-actions">
+            <button class="default w100" onclick=${() => { setTab('deploy'); handleQuickDeploy(); }}>
+              Deploy
+            </button>
+            <button class="w100" onclick=${handleQuickUndeploy}>
+              Undeploy All
+            </button>
+          </div>
         </nav>
 
         <div class="content-area">
