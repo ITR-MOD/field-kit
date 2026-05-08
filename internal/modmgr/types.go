@@ -20,6 +20,7 @@ const (
 	ModTypePak     ModType = "pak"
 	ModTypeLogic   ModType = "logicmod"
 	ModTypeCustom  ModType = "custom"
+	ModTypeSML     ModType = "sml"
 	ModTypeUnknown ModType = "unknown"
 )
 

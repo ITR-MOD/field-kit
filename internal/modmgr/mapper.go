@@ -18,11 +18,12 @@ const (
 	GameInternalID = "IntoTheRadius2"
 	PakDir         = "IntoTheRadius2/Content/Paks"
 	BinDir         = "IntoTheRadius2/Binaries/Win64"
+	ModsDir        = "IntoTheRadius2/Content/Mods"
 )
 
 // validExtensions mirrors the Vortex extension's VALID_EXTENSIONS list.
 var validExtensions = map[string]bool{
-	".pak": true, ".utoc": true, ".ucas": true,
+	".pak": true, ".utoc": true, ".ucas": true, ".uplugin": true,
 	".lua": true, ".ini": true, ".txt": true, ".dll": true,
 }
 
@@ -52,6 +53,7 @@ func DetectTypes(files []string) []ModType {
 	hasShared := anyMatch(files, func(f string) bool { return base(f) == "shared" || dir(f) == "shared" || strings.Contains(f, "/shared/") })
 	hasPak := anyMatch(files, func(f string) bool { return strings.ToLower(filepath.Ext(f)) == ".pak" })
 	hasCustom := anyMatch(files, func(f string) bool { return base(f) == "custom.txt" })
+	hasSML := anyMatch(files, func(f string) bool { return strings.ToLower(filepath.Ext(f)) == ".uplugin" })
 
 	var types []ModType
 	if hasUE4SS {
@@ -68,6 +70,9 @@ func DetectTypes(files []string) []ModType {
 	}
 	if hasCustom {
 		types = append(types, ModTypeCustom)
+	}
+	if hasSML {
+		types = append(types, ModTypeSML)
 	}
 	if len(types) == 0 {
 		types = []ModType{ModTypeUnknown}
@@ -97,10 +102,11 @@ func MapFiles(files []string) []Instruction {
 func MapFilesForGame(files []string, gameInternalID string) []Instruction {
 	pakDir := gameInternalID + "/Content/Paks"
 	binDir := gameInternalID + "/Binaries/Win64"
-	return mapFilesImpl(files, pakDir, binDir)
+	modsDir := gameInternalID + "/Content/Mods"
+	return mapFilesImpl(files, pakDir, binDir, modsDir)
 }
 
-func mapFilesImpl(files []string, pakDir, binDir string) []Instruction {
+func mapFilesImpl(files []string, pakDir, binDir, modsDir string) []Instruction {
 	var instructions []Instruction
 	alreadyCopied := map[string]bool{}
 
@@ -127,6 +133,40 @@ func mapFilesImpl(files []string, pakDir, binDir string) []Instruction {
 				Source:   sibling,
 				Dest:     filepath.ToSlash(sibling),
 				IsCustom: true,
+			})
+			alreadyCopied[sibling] = true
+		}
+	}
+
+	// ── SimpleModLoader ──────────────────────────────────────────────────────
+	// Detected by a .uplugin file whose base name matches sibling .pak/.ucas/.utoc
+	// files in the same directory. All matched files go to Content/Mods/modName/.
+	for _, f := range files {
+		if strings.ToLower(filepath.Ext(f)) != ".uplugin" {
+			continue
+		}
+		upluginDir := dir(f)
+		baseName := strings.TrimSuffix(base(f), filepath.Ext(base(f)))
+		modName := base(upluginDir)
+		smlExts := map[string]bool{".pak": true, ".ucas": true, ".utoc": true, ".uplugin": true}
+		for _, sibling := range files {
+			if dir(sibling) != upluginDir {
+				continue
+			}
+			ext := strings.ToLower(filepath.Ext(sibling))
+			if !smlExts[ext] {
+				continue
+			}
+			siblingBase := strings.TrimSuffix(base(sibling), filepath.Ext(base(sibling)))
+			if siblingBase != baseName {
+				continue
+			}
+			if alreadyCopied[sibling] {
+				continue
+			}
+			instructions = append(instructions, Instruction{
+				Source: sibling,
+				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, base(sibling))),
 			})
 			alreadyCopied[sibling] = true
 		}
