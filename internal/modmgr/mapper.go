@@ -139,36 +139,55 @@ func mapFilesImpl(files []string, pakDir, binDir, modsDir string) []Instruction 
 	}
 
 	// ── SimpleModLoader ──────────────────────────────────────────────────────
-	// Detected by a .uplugin file whose base name matches sibling .pak/.ucas/.utoc
-	// files in the same directory. All matched files go to Content/Mods/modName/.
+	// Detected by a .uplugin file that has sibling .pak/.ucas/.utoc files in the
+	// same directory or in a Content/ subdirectory relative to the .uplugin.
+	// The .uplugin deploys to Content/Mods/{modName}/{filename}.uplugin.
+	// The .pak/.ucas/.utoc files deploy to Content/Mods/{modName}/Content/{filename}.
 	for _, f := range files {
 		if strings.ToLower(filepath.Ext(f)) != ".uplugin" {
 			continue
 		}
 		upluginDir := dir(f)
-		baseName := strings.TrimSuffix(base(f), filepath.Ext(base(f)))
 		modName := base(upluginDir)
-		smlExts := map[string]bool{".pak": true, ".ucas": true, ".utoc": true, ".uplugin": true}
+		contentSubDir := upluginDir + "/Content"
+		pakExts := map[string]bool{".pak": true, ".ucas": true, ".utoc": true}
+
+		// Collect pak/ucas/utoc files from the uplugin dir and its Content subdir.
+		var pakFiles []string
 		for _, sibling := range files {
-			if dir(sibling) != upluginDir {
-				continue
-			}
 			ext := strings.ToLower(filepath.Ext(sibling))
-			if !smlExts[ext] {
+			if !pakExts[ext] {
 				continue
 			}
-			siblingBase := strings.TrimSuffix(base(sibling), filepath.Ext(base(sibling)))
-			if siblingBase != baseName {
-				continue
+			if dir(sibling) == upluginDir || dir(sibling) == contentSubDir {
+				pakFiles = append(pakFiles, sibling)
 			}
-			if alreadyCopied[sibling] {
+		}
+
+		// Only treat as SML if there are matching pak/ucas/utoc files.
+		if len(pakFiles) == 0 {
+			continue
+		}
+
+		// Deploy the .uplugin itself.
+		if !alreadyCopied[f] {
+			instructions = append(instructions, Instruction{
+				Source: f,
+				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, base(f))),
+			})
+			alreadyCopied[f] = true
+		}
+
+		// Deploy each pak/ucas/utoc into Content/ under the mod dir.
+		for _, pf := range pakFiles {
+			if alreadyCopied[pf] {
 				continue
 			}
 			instructions = append(instructions, Instruction{
-				Source: sibling,
-				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, base(sibling))),
+				Source: pf,
+				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, "Content", base(pf))),
 			})
-			alreadyCopied[sibling] = true
+			alreadyCopied[pf] = true
 		}
 	}
 
