@@ -1,3 +1,5 @@
+//go:build desktop
+
 package cmd
 
 import (
@@ -9,6 +11,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
+
+const isDesktopBuild = true
 
 var guiCmd = &cobra.Command{
 	Use:   "gui",
@@ -38,7 +42,5 @@ func runGUI(_ *cobra.Command, _ []string) error {
 
 func init() {
 	rootCmd.AddCommand(guiCmd)
-	// Make GUI the default when the root command is invoked without a subcommand.
-	rootCmd.RunE = runGUI
 }
 

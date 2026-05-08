@@ -33,6 +33,13 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 	rootCmd.AddCommand(undeployCmd)
 	rootCmd.AddCommand(statusCmd)
+
+	// Default to GUI when built with the desktop tag, TUI otherwise.
+	if isDesktopBuild {
+		rootCmd.RunE = runGUI
+	} else {
+		rootCmd.RunE = runTUI
+	}
 }
 
 func initConfig() {
