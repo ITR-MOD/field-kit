@@ -48,6 +48,11 @@ type msgStatus struct {
 	isError bool
 }
 type msgRefresh struct{}
+type msgSetAdjustOverride struct {
+	src     string
+	dest    string
+	isReset bool // true = delete/restore-to-default
+}
 type msgShowInput struct {
 	prompt string
 	value  string // optional pre-filled text
@@ -179,6 +184,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.refreshDeployState()
 		return m, statusCmd("undeploy complete – originals restored", false)
+
+	case msgSetAdjustOverride:
+		if msg.isReset {
+			delete(m.adjustOverrides, msg.src)
+		} else {
+			m.adjustOverrides[msg.src] = msg.dest
+		}
+		m.overlay = overlayAdjust
+		return m, nil
 	}
 
 	if m.overlay != overlayNone {
@@ -736,19 +750,17 @@ func (m model) updateAdjustOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 			current = ov
 		}
 		src := instr.Source
+		defaultDest := m.adjustDefaults[instrIdx]
 		return m, func() tea.Msg {
 			return msgShowInput{
 				prompt: "Destination for " + src + ":",
 				value:  current,
 				onDone: func(newDest string) tea.Cmd {
 					newDest = strings.TrimSpace(newDest)
-					if newDest == "" || newDest == m.adjustDefaults[instrIdx] {
-						delete(m.adjustOverrides, src)
-					} else {
-						m.adjustOverrides[src] = newDest
+					isReset := newDest == "" || newDest == defaultDest
+					return func() tea.Msg {
+						return msgSetAdjustOverride{src: src, dest: newDest, isReset: isReset}
 					}
-					m.overlay = overlayAdjust
-					return nil
 				},
 			}
 		}
