@@ -16,7 +16,10 @@ before:
     - go generate ./...
 
 builds:
-  - env:
+  # TUI-only build (Linux + Windows, no Wails/CGO)
+  - id: tui
+    binary: field-kit
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -24,9 +27,24 @@ builds:
     goarch:
       - amd64
 
+  # Desktop GUI build (Windows only, CGO + Wails desktop tag)
+  - id: desktop
+    binary: field-kit-gui
+    env:
+      - CGO_ENABLED=1
+    flags:
+      - -tags=desktop,production
+    ldflags:
+      - -w -s -H windowsgui
+    goos:
+      - windows
+    goarch:
+      - amd64
+
 archives:
-  - formats: [tar.gz]
-    # this name template makes the OS and Arch compatible with the results of `uname`.
+  - id: tui
+    builds: [tui]
+    formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -34,10 +52,18 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
     format_overrides:
       - goos: windows
         formats: [zip]
+
+  - id: desktop
+    builds: [desktop]
+    formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_gui_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
 
 changelog:
   sort: asc
