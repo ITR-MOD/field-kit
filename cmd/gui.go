@@ -38,5 +38,7 @@ func runGUI(_ *cobra.Command, _ []string) error {
 
 func init() {
 	rootCmd.AddCommand(guiCmd)
+	// Make GUI the default when the root command is invoked without a subcommand.
+	rootCmd.RunE = runGUI
 }
 

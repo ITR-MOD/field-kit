@@ -12,7 +12,7 @@ import (
 
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
-	Short: "Launch the interactive terminal UI (default when run with no subcommand)",
+	Short: "Launch the interactive terminal UI",
 	RunE:  runTUI,
 }
 
@@ -27,6 +27,4 @@ func runTUI(_ *cobra.Command, _ []string) error {
 
 func init() {
 	rootCmd.AddCommand(tuiCmd)
-	// Make TUI the default when the root command is invoked without a subcommand.
-	rootCmd.RunE = runTUI
 }
