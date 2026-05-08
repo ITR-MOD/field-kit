@@ -18,7 +18,7 @@ const (
 	GameInternalID = "IntoTheRadius2"
 	PakDir         = "IntoTheRadius2/Content/Paks"
 	BinDir         = "IntoTheRadius2/Binaries/Win64"
-	ModsDir        = "IntoTheRadius2/Content/Mods"
+	ModsDir        = "IntoTheRadius2/Mods"
 )
 
 // validExtensions mirrors the Vortex extension's VALID_EXTENSIONS list.
