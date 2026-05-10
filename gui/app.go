@@ -70,6 +70,41 @@ func (a *App) AutoDetectInstalls() ([]config.GameInstall, error) {
 	return added, nil
 }
 
+// AddGameManual registers a game install at the given path with the given label.
+func (a *App) AddGameManual(name, path string) (*config.GameInstall, error) {
+	if path == "" {
+		return nil, fmt.Errorf("path cannot be empty")
+	}
+	// Show a directory picker if path is the sentinel value "-".
+	if path == "-" {
+		var err error
+		path, err = wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+			Title: "Select Game Installation Folder",
+		})
+		if err != nil || path == "" {
+			return nil, err
+		}
+	}
+	if name == "" {
+		name = "Game Installation"
+	}
+	g, err := config.AddGame(name, path)
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
+// RemoveGameInstall removes a registered game install by ID.
+func (a *App) RemoveGameInstall(id string) error {
+	return config.RemoveGame(id)
+}
+
+// RenameGameInstall updates the label of a registered game install.
+func (a *App) RenameGameInstall(id, newName string) error {
+	return config.RenameGame(id, newName)
+}
+
 // ── Mods ──────────────────────────────────────────────────────────────────────
 
 // ModInfo is the frontend-facing representation of a mod, combining
@@ -170,6 +205,28 @@ func (a *App) ProfileRemoveMod(gameID, profileName, modID string) error {
 type DeployResult struct {
 	OK      bool   `json:"ok"`
 	Message string `json:"message"`
+}
+
+// DeployStateInfo summarises the current deployment state for the frontend.
+type DeployStateInfo struct {
+	IsDeployed bool   `json:"is_deployed"`
+	GameID     string `json:"game_id"`
+	Profile    string `json:"profile"`
+	FileCount  int    `json:"file_count"`
+}
+
+// GetDeployState returns the current deployment state from the persisted record.
+func (a *App) GetDeployState() DeployStateInfo {
+	s, err := deploy.GetState()
+	if err != nil || s == nil || len(s.Deployed) == 0 {
+		return DeployStateInfo{}
+	}
+	return DeployStateInfo{
+		IsDeployed: true,
+		GameID:     s.GameID,
+		Profile:    s.Profile,
+		FileCount:  len(s.Deployed),
+	}
 }
 
 // Deploy runs a full deploy of the given profile into the given game install.

@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"io/fs"
+	"os"
 
 	"github.com/ITR-MOD/field-kit/gui"
 	"github.com/spf13/cobra"
@@ -27,16 +28,29 @@ func runGUI(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Enable the WebKit inspector when --field-kit-debug is passed.
+	openInspector := false
+	if os.Getenv("FIELD_KIT_DEBUG") == "true" {
+		openInspector = true
+	}
+
 	app := gui.NewApp()
 	return wails.Run(&options.App{
-		Title:  "ITR Field Kit v0.4.0",
-		Width:  1200,
-		Height: 768,
+		Title:     "ITR Field Kit v0.4.0",
+		Width:     1200,
+		Height:    768,
+		MaxWidth:  1920,
+		MaxHeight: 1080,
+		MinWidth:  990,
+		MinHeight: 480,
 		AssetServer: &assetserver.Options{
 			Assets: frontendFS,
 		},
 		OnStartup: app.Startup,
 		Bind:      []interface{}{app},
+		Debug: options.Debug{
+			OpenInspectorOnStartup: openInspector,
+		},
 	})
 }
 

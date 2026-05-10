@@ -49,6 +49,11 @@ func loadState() (*State, error) {
 	return &s, json.Unmarshal(data, &s)
 }
 
+// GetState returns the current deployment state from the app-data record.
+func GetState() (*State, error) {
+	return loadState()
+}
+
 func saveState(s *State) error {
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

@@ -37,6 +37,7 @@ builds:
     ldflags:
       - -w -s -H windowsgui
     goos:
+      - linux
       - windows
     goarch:
       - amd64

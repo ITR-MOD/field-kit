@@ -180,6 +180,39 @@ func SetActiveGame(id string) error {
 	return save()
 }
 
+// RemoveGame removes a registered game install by ID and saves.
+// If it was the active game, the active game is cleared.
+func RemoveGame(id string) error {
+	idx := -1
+	for i, g := range cfg.Games {
+		if g.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("no game with id %q", id)
+	}
+	cfg.Games = append(cfg.Games[:idx], cfg.Games[idx+1:]...)
+	if cfg.ActiveGame == id {
+		cfg.ActiveGame = ""
+		if len(cfg.Games) > 0 {
+			cfg.ActiveGame = cfg.Games[0].ID
+		}
+	}
+	return save()
+}
+
+// RenameGame updates the Label of a registered game install and saves.
+func RenameGame(id, newName string) error {
+	g := GameByID(id)
+	if g == nil {
+		return fmt.Errorf("no game with id %q", id)
+	}
+	g.Name = newName
+	return save()
+}
+
 // GetActiveProfile returns the active profile name for the given game install.
 // Returns "" if no profile has been set for that game.
 func GetActiveProfile(gameID string) string {

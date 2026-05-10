@@ -94,7 +94,7 @@
     .col   { display:flex; flex-direction:column; gap:4px; }
     .two-col   { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
     .three-one { display:grid; grid-template-columns:1fr 210px; gap:6px; }
-    .one-two   { display:grid; grid-template-columns:175px 1fr; gap:6px; }
+    .one-two   { display:grid; grid-template-columns:190px 1fr; gap:6px; }
     .flex1 { flex:1; }
     .w100  { width:100%; box-sizing:border-box; }
     .mb4   { margin-bottom:4px; }
@@ -113,6 +113,19 @@
                    margin-bottom:2px; display:block; }
     .status-bar { flex-shrink:0; }
     button.disabled,button[disabled] { color:grey; text-shadow:1px 1px 0 #fff; cursor:default; }
+
+    /* TUI-matching elements */
+    .nav-num { font-family:"Courier New",monospace; font-size:10px; opacity:0.6;
+               margin-right:3px; font-weight:normal; }
+    .nav-entry.active .nav-num { opacity:1; color:white; }
+    .active-marker { font-family:"Courier New",monospace; font-weight:bold;
+                     color:navy; min-width:12px; display:inline-block; }
+    .listview tbody tr.selected .active-marker { color:white; }
+    .tui-check { font-family:"Courier New",monospace; }
+    .dot-active { color:green; font-weight:bold; font-size:14px; line-height:1; }
+    .dot-none   { color:grey;  font-size:14px; line-height:1; }
+    .deploy-status-row { display:flex; align-items:center; gap:6px;
+      font-family:"Pixelated MS Sans Serif",Arial; font-size:11px; padding:3px 0; }
   </style>
 </head>
 <body>
@@ -158,6 +171,9 @@ const FALLBACK = {
   GetInstalls:        () => FALLBACK_INSTALLS,
   GetActiveGameID:    () => 'G-001',
   SetActiveGame:      (id) => ({ ok:true, message:'ok' }),
+  AddGameManual:      (name, path) => ({ id:'G-new', name: name || 'New Game', path, version:'itr2' }),
+  RemoveGameInstall:  (id) => null,
+  RenameGameInstall:  (id, name) => null,
   GetMods:            () => FALLBACK_MODS,
   GetProfileNames:    (gameID) => FALLBACK_PROFILES,
   GetActiveProfileName: (gameID) => 'DEFAULT',
@@ -173,6 +189,7 @@ const FALLBACK = {
   RemoveMod:          () => null,
   DeleteProfile:      (gameID, name) => null,
   DuplicateProfile:   (gameID, src, newName) => null,
+  GetDeployState:     () => ({ is_deployed: true, game_id: 'G-001', profile: 'DEFAULT', file_count: 12 }),
   OpenFolder:         () => null,
 };
 
@@ -220,6 +237,32 @@ function TabInstalls({ active, activeGameID, onActiveGameChange }) {
     setLoading(false);
   }
 
+  async function handleAdd() {
+    const g = await call('AddGameManual', '', '-');
+    if (!g) return;
+    const data = await call('GetInstalls');
+    setInstalls(data || []);
+    setSel(data ? data.findIndex(i => i.id === g.id) : null);
+  }
+
+  async function handleEdit() {
+    if (!d) return;
+    const name = prompt('Rename installation:', d.name);
+    if (!name?.trim() || name.trim() === d.name) return;
+    await call('RenameGameInstall', d.id, name.trim());
+    const data = await call('GetInstalls');
+    setInstalls(data || []);
+  }
+
+  async function handleRemove() {
+    if (!d) return;
+    if (!confirm(`Remove "${d.name}" from the list? This does not delete any game files.`)) return;
+    await call('RemoveGameInstall', d.id);
+    const data = await call('GetInstalls');
+    setInstalls(data || []);
+    setSel(null);
+  }
+
   return html`
     <div class=${cx('tab-panel', active && 'active')} id="tab-installs">
 
@@ -227,16 +270,16 @@ function TabInstalls({ active, activeGameID, onActiveGameChange }) {
         <legend>Registered Installations</legend>
         <div class="row mb4" style="justify-content:flex-end">
           <button onclick=${handleAutoDetect}>Auto-Detect</button>
-          <button>Add...</button>
-          <button disabled=${!d}>Edit</button>
-          <button disabled=${!d}>Remove...</button>
+          <button onclick=${handleAdd}>Add...</button>
+          <button disabled=${!d} onclick=${handleEdit}>Rename...</button>
+          <button disabled=${!d} onclick=${handleRemove}>Remove...</button>
         </div>
         <div style="flex:1;overflow-y:auto">
           ${loading
             ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
             : html`<table class="listview">
                 <thead>
-                  <tr><th>ID</th><th>Label</th><th>Path</th><th>Version</th><th>Status</th></tr>
+                  <tr><th style="width:14px"></th><th>Label</th><th>Path</th><th>Version</th></tr>
                 </thead>
                 <tbody>
                   ${installs.map((inst, i) => {
@@ -244,11 +287,10 @@ function TabInstalls({ active, activeGameID, onActiveGameChange }) {
                     const dim = !isActive && inst.version && inst.version.startsWith('itr1');
                     return html`
                       <tr class=${sel === i ? 'selected' : undefined} onclick=${() => setSel(i)}>
-                        <td class=${cx('mono', dim && 'c-dim')}>${inst.id}</td>
+                        <td style="padding:2px 4px"><span class="active-marker">${isActive ? '\u25ba' : ''}</span></td>
                         <td class=${cx(dim && 'c-dim')}>${inst.name}</td>
                         <td class=${cx('mono','small', dim && 'c-dim')}>${inst.path}</td>
                         <td class=${cx('mono', dim && 'c-dim')}>${versionLabel(inst.version)}</td>
-                        <td class=${cx(dim && 'c-dim')}>${isActive ? 'Active' : 'Registered'}</td>
                       </tr>`;
                   })}
                 </tbody>
@@ -404,7 +446,7 @@ function TabMods({ active }) {
 }
 
 // ── Tab: Profiles ─────────────────────────────────────────────────────────────
-function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
+function TabProfiles({ active, activeGameID, activeProfileName, onActiveProfileChange }) {
   const [profileNames, setProfileNames] = useState([]);
   const [selName, setSelName] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -415,7 +457,7 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
   const [selAvail, setSelAvail] = useState(null);
 
   useEffect(() => {
-    Promise.all([call('GetProfileNames'), call('GetMods')]).then(([names, allMods]) => {
+    Promise.all([call('GetProfileNames', activeGameID), call('GetMods')]).then(([names, allMods]) => {
       const n = names || [];
       setProfileNames(n);
       setMods(allMods || []);
@@ -425,28 +467,28 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
       }
       setLoading(false);
     });
-  }, []);
+  }, [activeGameID]);
 
   useEffect(() => {
     if (!selName) return;
-    call('GetProfile', selName).then(p => setProfile(p));
+    call('GetProfile', activeGameID, selName).then(p => setProfile(p));
     setEditMode(false);
-  }, [selName]);
+  }, [selName, activeGameID]);
 
   const inProfile = mods.filter(m => profile?.mods?.includes(m.id));
   const notInProfile = mods.filter(m => !profile?.mods?.includes(m.id));
 
   async function handleSetActive() {
     if (!selName) return;
-    await call('SetActiveProfile', selName);
+    await call('SetActiveProfile', activeGameID, selName);
     onActiveProfileChange(selName);
   }
 
   async function handleNewProfile() {
     const name = prompt('Enter new profile name:');
     if (!name?.trim()) return;
-    await call('NewProfile', name.trim());
-    const names = await call('GetProfileNames');
+    await call('NewProfile', activeGameID, name.trim());
+    const names = await call('GetProfileNames', activeGameID);
     setProfileNames(names || []);
     setSelName(name.trim());
   }
@@ -455,8 +497,8 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
     if (!selName) return;
     const name = prompt('New profile name:', selName + '_COPY');
     if (!name?.trim()) return;
-    await call('DuplicateProfile', selName, name.trim());
-    const names = await call('GetProfileNames');
+    await call('DuplicateProfile', activeGameID, selName, name.trim());
+    const names = await call('GetProfileNames', activeGameID);
     setProfileNames(names || []);
     setSelName(name.trim());
   }
@@ -464,32 +506,32 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
   async function handleDelete() {
     if (!selName) return;
     if (!confirm(`Delete profile "${selName}"? This cannot be undone.`)) return;
-    await call('DeleteProfile', selName);
-    const names = await call('GetProfileNames');
+    await call('DeleteProfile', activeGameID, selName);
+    const names = await call('GetProfileNames', activeGameID);
     const n = names || [];
     setProfileNames(n);
     setSelName(n[0] ?? null);
   }
 
   async function handleRemoveMod(modID) {
-    await call('ProfileRemoveMod', selName, modID);
-    const p = await call('GetProfile', selName);
+    await call('ProfileRemoveMod', activeGameID, selName, modID);
+    const p = await call('GetProfile', activeGameID, selName);
     setProfile(p);
   }
 
   async function handleAddMod(modID) {
-    await call('ProfileAddMod', selName, modID);
-    const p = await call('GetProfile', selName);
+    await call('ProfileAddMod', activeGameID, selName, modID);
+    const p = await call('GetProfile', activeGameID, selName);
     setProfile(p);
   }
 
   return html`
     <div class=${cx('tab-panel', active && 'active')} id="tab-profiles">
-      <div class="one-two" style="flex:1;overflow:hidden;min-height:0">
+      <div class="one-two" style="flex:1;min-height:0;grid-template-rows:minmax(0,1fr)">
 
         <!-- Left: profile list -->
-        <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0">
-          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;margin-bottom:0">
+        <div style="display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden">
+          <fieldset style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;margin-bottom:4px">
             <legend>Profiles</legend>
             ${loading
               ? html`<div style="padding:8px;font-family:'Pixelated MS Sans Serif',Arial;font-size:11px">Loading...</div>`
@@ -497,19 +539,17 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                   ${profileNames.map(name => html`
                     <li class=${selName === name ? 'selected' : undefined}
                         onclick=${() => setSelName(name)}>
+                      <span class="active-marker" style="margin-right:4px">${name === activeProfileName ? '\u25ba' : ''}</span>
                       ${name}
-                      <span class=${cx('small', name !== activeProfileName && 'c-dim')}>
-                        ${name === activeProfileName ? '[active]' : ''}
-                      </span>
                     </li>
                   `)}
                 </ul>`
             }
           </fieldset>
-          <div class="row" style="margin-top:2px;flex-shrink:0">
-            <button style="flex:1" onclick=${handleNewProfile}>New...</button>
-            <button style="flex:1" disabled=${!selName} onclick=${handleDuplicate}>Duplicate</button>
-            <button style="flex:1" disabled=${!selName} onclick=${handleDelete}>Delete...</button>
+          <div class="row" style="margin-top:2px;flex-shrink:0;width:100%">
+            <button style="flex:1;min-width:0" onclick=${handleNewProfile}>New...</button>
+            <button style="flex:1;min-width:0" disabled=${!selName} onclick=${handleDuplicate}>Duplicate</button>
+            <button style="flex:1;min-width:0" disabled=${!selName} onclick=${handleDelete}>Delete...</button>
           </div>
         </div>
 
@@ -578,19 +618,22 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
                 </div>
               </div>
             ` : html`
-              <!-- View mode -->
+              <!-- View mode: all mods with [✓]/[ ] checkmarks (read-only) -->
               <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
                 <div style="flex:1;overflow-y:auto">
                   <table class="listview">
-                    <thead><tr><th>#</th><th>Mod Name</th><th>Types</th></tr></thead>
+                    <thead><tr><th style="width:30px">In</th><th>Mod Name</th><th>Types</th></tr></thead>
                     <tbody>
-                      ${inProfile.map((m, i) => html`
-                        <tr>
-                          <td class="mono">${String(i+1).padStart(2,'0')}</td>
-                          <td>${m.name}</td>
-                          <td class="mono small">${(m.types||[]).join(',') || '--'}</td>
-                        </tr>
-                      `)}
+                      ${mods.map(m => {
+                        const inP = profile?.mods?.includes(m.id);
+                        return html`
+                          <tr class=${!inP ? undefined : undefined}>
+                            <td class="tui-check" style="text-align:center">${inP ? '[\u2713]' : '[ ]'}</td>
+                            <td class=${!inP ? 'c-dim' : undefined}>${m.name}</td>
+                            <td class=${cx('mono','small', !inP && 'c-dim')}>${(m.types||[]).join(',') || '--'}</td>
+                          </tr>
+                        `;
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -612,7 +655,14 @@ function TabProfiles({ active, activeProfileName, onActiveProfileChange }) {
 // ── Tab: Deploy ───────────────────────────────────────────────────────────────
 function TabDeploy({ active, activeGameID, activeProfileName, externalLog, onClearLog }) {
   const [deploying, setDeploying] = useState(false);
+  const [deployState, setDeployState] = useState(null);
   const log = externalLog || [];
+
+  function refreshState() {
+    call('GetDeployState').then(s => setDeployState(s));
+  }
+
+  useEffect(() => { refreshState(); }, [active]);
 
   function dispatchLog(cls, text) {
     const ts = new Date().toLocaleTimeString('en-GB', { hour12:false });
@@ -626,6 +676,7 @@ function TabDeploy({ active, activeGameID, activeProfileName, externalLog, onCle
     const result = await call('Deploy', activeGameID, activeProfileName);
     dispatchLog(result?.ok ? 'lk' : 'le', result?.ok ? result.message : `ERROR: ${result?.message}`);
     setDeploying(false);
+    refreshState();
   }
 
   async function handleUndeploy() {
@@ -635,7 +686,10 @@ function TabDeploy({ active, activeGameID, activeProfileName, externalLog, onCle
     const result = await call('Undeploy', activeGameID);
     dispatchLog(result?.ok ? 'lk' : 'le', result?.ok ? result.message : `ERROR: ${result?.message}`);
     setDeploying(false);
+    refreshState();
   }
+
+  const isDeployed = deployState?.is_deployed;
 
   return html`
     <div class=${cx('tab-panel', active && 'active')} id="tab-deploy">
@@ -644,9 +698,19 @@ function TabDeploy({ active, activeGameID, activeProfileName, externalLog, onCle
         <fieldset style="margin:0;flex:1">
           <legend>Deploy Configuration</legend>
           <table class="detail-table">
-            <tr><td>Game ID:</td> <td class="mono">${activeGameID || '--'}</td></tr>
+            <tr><td>Game:</td>    <td class="mono">${activeGameID || '--'}</td></tr>
             <tr><td>Profile:</td> <td><strong>${activeProfileName || '--'}</strong></td></tr>
           </table>
+          <div class="deploy-status-row" style="margin-top:6px">
+            ${isDeployed
+              ? html`<span class="dot-active">\u25cf</span>
+                     <span>Active &mdash; ${deployState.file_count} files
+                       <span class="c-dim small"> &nbsp;[${deployState.profile}]</span>
+                     </span>`
+              : html`<span class="dot-none">\u25cb</span>
+                     <span class="c-dim">Not deployed</span>`
+            }
+          </div>
         </fieldset>
         <fieldset style="margin:0;flex-shrink:0;min-width:200px">
           <legend>Actions</legend>
@@ -801,10 +865,10 @@ function App() {
               <li>
                 <div class="nav-section-label">[ ITR Field Kit ]</div>
                 <ul>
-                  ${['installs','mods','profiles','deploy'].map(t => html`
+                  ${['installs','mods','profiles','deploy'].map((t, i) => html`
                     <li>
                       <div class=${cx('nav-entry', tab === t && 'active')} onclick=${() => setTab(t)}>
-                        ${TAB_LABELS[t]}
+                        <span class="nav-num">[${i+1}]</span>${TAB_LABELS[t]}
                       </div>
                     </li>
                   `)}
@@ -815,7 +879,7 @@ function App() {
                 <ul>
                   <li>
                     <div class=${cx('nav-entry', tab === 'settings' && 'active')} onclick=${() => setTab('settings')}>
-                      Settings
+                      <span class="nav-num">[5]</span>Settings
                     </div>
                   </li>
                 </ul>
