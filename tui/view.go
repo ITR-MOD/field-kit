@@ -31,12 +31,12 @@ var (
 		Padding(0, 1)
 
 	sTabInactive = lipgloss.NewStyle().
-		Foreground(cGreenDim).Background(cBlack).
-		Padding(0, 2)
+			Foreground(cGreenDim).Background(cBlack).
+			Padding(0, 2)
 
 	sTabActive = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cGreen).
-		Padding(0, 2)
+			Bold(true).Foreground(cBlack).Background(cGreen).
+			Padding(0, 2)
 
 	sTabNum = lipgloss.NewStyle().
 		Foreground(cGreenFaint).Background(cBlack)
@@ -45,72 +45,72 @@ var (
 		Foreground(cGreen).Background(cBlack)
 
 	sItemSelected = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cGreen)
+			Bold(true).Foreground(cBlack).Background(cGreen)
 
 	sItemActive = lipgloss.NewStyle().
-		Foreground(cYellow).Background(cBlack)
+			Foreground(cYellow).Background(cBlack)
 
 	sItemActiveSelected = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cYellow)
+				Bold(true).Foreground(cBlack).Background(cYellow)
 
 	sItemFaint = lipgloss.NewStyle().
-		Foreground(cGreenDim).Background(cBlack)
+			Foreground(cGreenDim).Background(cBlack)
 
 	sAccent = lipgloss.NewStyle().
 		Bold(true).Foreground(cBright).Background(cBlack)
 
 	sSectionTitle = lipgloss.NewStyle().
-		Bold(true).Foreground(cGreenDim).Background(cBlack).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(cGreenFaint).
-		BorderBackground(cBlack).
-		BorderBottom(true)
+			Bold(true).Foreground(cGreenDim).Background(cBlack).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(cGreenFaint).
+			BorderBackground(cBlack).
+			BorderBottom(true)
 
 	sPaneFocused = lipgloss.NewStyle().
-		Background(cBlack).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cGreen).
-		BorderBackground(cBlack)
+			Background(cBlack).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(cGreen).
+			BorderBackground(cBlack)
 
 	sPaneBlur = lipgloss.NewStyle().
-		Background(cBlack).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cGreenFaint).
-		BorderBackground(cBlack)
+			Background(cBlack).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(cGreenFaint).
+			BorderBackground(cBlack)
 
 	sStatus = lipgloss.NewStyle().
 		Foreground(cGreen).Background(cGreenBg).
 		Padding(0, 1)
 
 	sStatusError = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cRed).
-		Padding(0, 1)
+			Bold(true).Foreground(cBlack).Background(cRed).
+			Padding(0, 1)
 
 	sHelp = lipgloss.NewStyle().
 		Foreground(cGreenDim).Background(cBlack).
 		Padding(0, 0)
 
 	sHelpKey = lipgloss.NewStyle().
-		Bold(true).Foreground(cGreen).Background(cBlack)
+			Bold(true).Foreground(cGreen).Background(cBlack)
 
 	sOverlay = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cGreen).
-		BorderBackground(cBlack).
-		Background(cBlack).
-		Foreground(cGreen).
-		Padding(1, 3)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(cGreen).
+			BorderBackground(cBlack).
+			Background(cBlack).
+			Foreground(cGreen).
+			Padding(1, 3)
 
 	sOverlayTitle = lipgloss.NewStyle().
-		Bold(true).Foreground(cBright).Background(cBlack)
+			Bold(true).Foreground(cBright).Background(cBlack)
 
 	sBtnSelected = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cGreen).
-		Padding(0, 2)
+			Bold(true).Foreground(cBlack).Background(cGreen).
+			Padding(0, 2)
 
 	sBtnUnselected = lipgloss.NewStyle().
-		Foreground(cGreenDim).Background(cGreenFaint).
-		Padding(0, 2)
+			Foreground(cGreenDim).Background(cGreenFaint).
+			Padding(0, 2)
 )
 
 // ─── Main View ────────────────────────────────────────────────────────────────
@@ -466,7 +466,7 @@ func (m model) renderFoot() string {
 }
 
 func (m model) renderHelp() string {
-	sep := sHelp.Render("  ")   // styled separator — black background
+	sep := sHelp.Render("  ") // styled separator — black background
 	key := func(k, desc string) string {
 		return sHelpKey.Render(k) + sHelp.Render(":"+desc)
 	}

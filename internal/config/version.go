@@ -10,7 +10,7 @@ import (
 
 // Game version identifiers.
 const (
-	VersionITR2     = "itr2"     // Into the Radius 2 (any version)
+	VersionITR2     = "itr2" // Into the Radius 2 (any version)
 	VersionITR1_07a = "itr1-0.7a"
 	VersionITR1_10  = "itr1-1.0"
 	VersionITR1_27  = "itr1-2.7"

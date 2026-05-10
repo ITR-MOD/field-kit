@@ -94,7 +94,7 @@ type filePickerState struct {
 	cursor  int
 	scroll  int
 	onPick  func(string) tea.Cmd // called with absolute path of chosen file
-	fp      fpFilter              // controls which files are shown
+	fp      fpFilter             // controls which files are shown
 }
 
 // ─── State helpers ────────────────────────────────────────────────────────────
@@ -346,10 +346,10 @@ var (
 		Foreground(cGreenDim).Background(cBlack)
 
 	fpDirSel = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cGreen)
+			Bold(true).Foreground(cBlack).Background(cGreen)
 
 	fpFileSel = lipgloss.NewStyle().
-		Bold(true).Foreground(cBlack).Background(cYellow)
+			Bold(true).Foreground(cBlack).Background(cYellow)
 
 	fpEmpty = lipgloss.NewStyle().
 		Foreground(cGreenFaint).Background(cBlack)

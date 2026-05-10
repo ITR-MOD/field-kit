@@ -43,4 +43,3 @@ func runGUI(_ *cobra.Command, _ []string) error {
 func init() {
 	rootCmd.AddCommand(guiCmd)
 }
-

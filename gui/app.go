@@ -75,13 +75,13 @@ func (a *App) AutoDetectInstalls() ([]config.GameInstall, error) {
 // ModInfo is the frontend-facing representation of a mod, combining
 // ModMeta with display helpers.
 type ModInfo struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Game    string `json:"game"`    // display label: "ITR2", "ITR1 v2.7", etc.
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Version string   `json:"version"`
+	Game    string   `json:"game"`  // display label: "ITR2", "ITR1 v2.7", etc.
 	Types   []string `json:"types"` // mod type strings
-	Files   int    `json:"files"`
-	Status  string `json:"status"` // "imported" for now; deploy layer enriches this
+	Files   int      `json:"files"`
+	Status  string   `json:"status"` // "imported" for now; deploy layer enriches this
 }
 
 // GetMods returns all imported mods from the local cache.
@@ -105,7 +105,7 @@ func modMetaToInfo(m *modmgr.ModMeta) ModInfo {
 	return ModInfo{
 		ID:      m.ID,
 		Name:    m.Name,
-		Version: "",  // ModMeta has no version field yet; leave blank
+		Version: "", // ModMeta has no version field yet; leave blank
 		Game:    "any",
 		Types:   types,
 		Files:   len(m.Files),
