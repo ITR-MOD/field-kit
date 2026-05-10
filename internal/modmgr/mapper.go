@@ -50,7 +50,9 @@ func DetectTypes(files []string) []ModType {
 	})
 	hasEnabledTxt := anyMatch(files, func(f string) bool { return base(f) == "enabled.txt" })
 	hasMainLua := anyMatch(files, func(f string) bool { return base(f) == "main.lua" })
-	hasShared := anyMatch(files, func(f string) bool { return base(f) == "shared" || dir(f) == "shared" || strings.Contains(f, "/shared/") })
+	hasShared := anyMatch(files, func(f string) bool {
+		return base(f) == "shared" || dir(f) == "shared" || strings.Contains(f, "/shared/")
+	})
 	hasPak := anyMatch(files, func(f string) bool { return strings.ToLower(filepath.Ext(f)) == ".pak" })
 	hasCustom := anyMatch(files, func(f string) bool { return base(f) == "custom.txt" })
 	hasSML := anyMatch(files, func(f string) bool { return strings.ToLower(filepath.Ext(f)) == ".uplugin" })
@@ -139,27 +141,41 @@ func mapFilesImpl(files []string, pakDir, binDir, modsDir string) []Instruction 
 	}
 
 	// ── SimpleModLoader ──────────────────────────────────────────────────────
-	// Detected by a .uplugin file that has sibling .pak/.ucas/.utoc files in the
-	// same directory or in a Content/ subdirectory relative to the .uplugin.
-	// The .uplugin deploys to Content/Mods/{modName}/{filename}.uplugin.
-	// The .pak/.ucas/.utoc files deploy to Content/Mods/{modName}/Content/{filename}.
+	// Detected by a .uplugin file (with or without a parent mod folder in the zip).
+	// Deployment structure (relative to modsDir):
+	//   {modName}/{modName}.uplugin
+	//   {modName}/Content/Paks/Windows/{filename}.(pak|ucas|utoc)
+	//
+	// modName is derived from the directory containing the .uplugin, or from the
+	// .uplugin filename itself when the file sits at the archive root.
 	for _, f := range files {
 		if strings.ToLower(filepath.Ext(f)) != ".uplugin" {
 			continue
 		}
 		upluginDir := dir(f)
-		modName := base(upluginDir)
-		contentSubDir := upluginDir + "/Content"
+		// Derive modName: prefer the containing directory name; fall back to the
+		// stem of the .uplugin filename when the file is at the archive root.
+		modName := strings.TrimSuffix(base(f), filepath.Ext(f))
+		if upluginDir != "" && upluginDir != "." {
+			modName = base(upluginDir)
+		}
+
 		pakExts := map[string]bool{".pak": true, ".ucas": true, ".utoc": true}
 
-		// Collect pak/ucas/utoc files from the uplugin dir and its Content subdir.
+		// Collect pak/ucas/utoc files anywhere beneath the same directory tree.
+		// When the .uplugin is at the archive root (upluginDir == "."), accept
+		// pak files from anywhere in the archive so that pre-structured zips
+		// (e.g. Content/Paks/Windows/ sitting alongside the .uplugin) are found.
 		var pakFiles []string
 		for _, sibling := range files {
 			ext := strings.ToLower(filepath.Ext(sibling))
 			if !pakExts[ext] {
 				continue
 			}
-			if dir(sibling) == upluginDir || dir(sibling) == contentSubDir {
+			sibDir := dir(sibling)
+			if upluginDir == "." {
+				pakFiles = append(pakFiles, sibling)
+			} else if sibDir == upluginDir || strings.HasPrefix(sibDir, upluginDir+"/") {
 				pakFiles = append(pakFiles, sibling)
 			}
 		}
@@ -169,23 +185,49 @@ func mapFilesImpl(files []string, pakDir, binDir, modsDir string) []Instruction 
 			continue
 		}
 
-		// Deploy the .uplugin itself.
+		// flat zip (uplugin at root) → deploy directly into modsDir with no subfolder.
+		// named-folder zip → deploy into modsDir/{modName}/.
+		// The .uplugin filename is always preserved as-is (not renamed).
+		var modSubDir string // empty = flat, otherwise the named subfolder
+		if upluginDir != "" && upluginDir != "." {
+			modSubDir = modName
+		}
+
+		// Deploy the .uplugin preserving its original filename.
 		if !alreadyCopied[f] {
 			instructions = append(instructions, Instruction{
 				Source: f,
-				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, base(f))),
+				Dest:   filepath.ToSlash(filepath.Join(modsDir, modSubDir, base(f))),
 			})
 			alreadyCopied[f] = true
 		}
 
-		// Deploy each pak/ucas/utoc into Content/ under the mod dir.
+		// Deploy each pak/ucas/utoc preserving any Content/Paks/ sub-path that
+		// already exists in the archive (so a pre-structured zip that a manual
+		// modder would extract to Content/Mods/ lands in exactly the right place).
+		// Files that are NOT already under Content/Paks/ are forced into
+		// Content/Paks/Windows/.
 		for _, pf := range pakFiles {
 			if alreadyCopied[pf] {
 				continue
 			}
+			// Compute path relative to the uplugin's directory.
+			relPath := filepath.ToSlash(pf)
+			if upluginDir != "." && upluginDir != "" {
+				relPath = strings.TrimPrefix(relPath, upluginDir+"/")
+			}
+			var destSubPath string
+			lower := strings.ToLower(relPath)
+			if strings.HasPrefix(lower, "content/paks/") {
+				// Already has the right structure — preserve it.
+				destSubPath = relPath
+			} else {
+				// Loose pak file: force into Content/Paks/Windows/.
+				destSubPath = filepath.ToSlash(filepath.Join("Content", "Paks", "Windows", base(pf)))
+			}
 			instructions = append(instructions, Instruction{
 				Source: pf,
-				Dest:   filepath.ToSlash(filepath.Join(modsDir, modName, "Content", base(pf))),
+				Dest:   filepath.ToSlash(filepath.Join(modsDir, modSubDir, destSubPath)),
 			})
 			alreadyCopied[pf] = true
 		}
@@ -314,8 +356,8 @@ func mapFilesImpl(files []string, pakDir, binDir, modsDir string) []Instruction 
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-func base(p string) string  { return filepath.Base(filepath.ToSlash(p)) }
-func dir(p string) string   { return filepath.ToSlash(filepath.Dir(filepath.ToSlash(p))) }
+func base(p string) string { return filepath.Base(filepath.ToSlash(p)) }
+func dir(p string) string  { return filepath.ToSlash(filepath.Dir(filepath.ToSlash(p))) }
 
 func anyMatch(files []string, pred func(string) bool) bool {
 	for _, f := range files {

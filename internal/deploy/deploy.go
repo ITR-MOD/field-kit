@@ -29,7 +29,7 @@ type DeployedFile struct {
 	IsWriteFile bool `json:"is_write_file,omitempty"`
 }
 
-// State is the persisted deployment record.
+// State is the persisted deployment record (legacy; kept for migration fallback).
 type State struct {
 	GameID   string         `json:"game_id"`
 	Profile  string         `json:"profile"`
@@ -56,12 +56,64 @@ func saveState(s *State) error {
 	return os.WriteFile(config.StatePath(), data, 0644)
 }
 
+// ─── Deployment manifest (written to game directory) ─────────────────────────
+
+const manifestFilename = "field-kit-manifest.json"
+
+// DeploymentManifest is the source-of-truth file written into the game root.
+// It records exactly what field-kit has deployed so that deploy/undeploy can
+// detect profile switches, clean up orphaned files, and operate correctly even
+// when the app-data state.json is missing or stale.
+type DeploymentManifest struct {
+	// ProfileID is the name of the profile that produced this deployment.
+	// Will become a UUID once profile sharing is implemented.
+	ProfileID string `json:"profile_id"`
+	// InstallationID is the GameInstall.ID hash for the game this was deployed to.
+	InstallationID string `json:"installation_id"`
+	// DeployedFiles is the complete list of every file placed during deployment.
+	DeployedFiles []DeployedFile `json:"deployed_files"`
+}
+
+func manifestPath(gamePath string) string {
+	return filepath.Join(gamePath, manifestFilename)
+}
+
+// loadManifest reads the manifest from the game directory.
+// Returns nil (not an error) if the file does not exist.
+func loadManifest(gamePath string) (*DeploymentManifest, error) {
+	data, err := os.ReadFile(manifestPath(gamePath))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var m DeploymentManifest
+	return &m, json.Unmarshal(data, &m)
+}
+
+func saveManifest(gamePath string, m *DeploymentManifest) error {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(manifestPath(gamePath), data, 0644)
+}
+
+func deleteManifest(gamePath string) error {
+	err := os.Remove(manifestPath(gamePath))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
 // ─── Backup registry ─────────────────────────────────────────────────────────
 
 // BackupEntry records one backed-up game file.
 type BackupEntry struct {
 	// RelPath is the path relative to game root.
-	RelPath    string `json:"rel_path"`
+	RelPath string `json:"rel_path"`
 	// BackupFile is the filename (not path) within the game's backup dir.
 	BackupFile string `json:"backup_file"`
 }
@@ -106,16 +158,35 @@ func saveBackupRegistry(gameID string, r *backupRegistry) error {
 //  3. Creates a symlink: gameRoot/dest → modCache/files/source.
 //
 // Deployment is idempotent for files that are already correctly symlinked.
+// On every run it reads the existing manifest from the game directory to:
+//   - Fully wipe a previous deployment when the profile or installation has changed.
+//   - Remove orphaned files (from mods removed from the profile) when the profile is the same.
 func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
-	state := &State{
-		GameID:  game.ID,
-		Profile: profile.Name,
-	}
-
 	backupReg, err := loadBackupRegistry(game.ID)
 	if err != nil {
 		return fmt.Errorf("load backup registry: %w", err)
 	}
+
+	// ── Manifest-aware pre-deploy cleanup ────────────────────────────────────
+	oldManifest, err := loadManifest(game.Path)
+	if err != nil {
+		return fmt.Errorf("load deployment manifest: %w", err)
+	}
+
+	if oldManifest != nil {
+		profileChanged := oldManifest.ProfileID != profile.Name || oldManifest.InstallationID != game.ID
+		if profileChanged {
+			// Different profile or game install: remove every previously deployed file.
+			if err := removeDeployedFiles(game, oldManifest.DeployedFiles, backupReg); err != nil {
+				return fmt.Errorf("wipe old deployment: %w", err)
+			}
+		}
+		// Orphan cleanup for same-profile re-deploys happens after we know the
+		// new file set; see end of function.
+	}
+
+	// newFiles accumulates every file placed in this deploy run.
+	var newFiles []DeployedFile
 
 	for _, modID := range profile.Mods {
 		meta, err := modmgr.LoadMeta(modID)
@@ -158,7 +229,7 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 				if err := os.WriteFile(dstAbs, []byte(instr.WriteContent), 0644); err != nil {
 					return fmt.Errorf("write %s: %w", dstAbs, err)
 				}
-				state.Deployed = append(state.Deployed, DeployedFile{
+				newFiles = append(newFiles, DeployedFile{
 					GamePath:    dstAbs,
 					ModID:       modID,
 					IsWriteFile: true,
@@ -186,7 +257,7 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 					target, _ := os.Readlink(dstAbs)
 					if target == srcAbs {
 						// Already correctly deployed; record and continue.
-						state.Deployed = append(state.Deployed, DeployedFile{
+						newFiles = append(newFiles, DeployedFile{
 							GamePath: dstAbs, ModID: modID, IsCustom: instr.IsCustom,
 						})
 						continue
@@ -213,32 +284,111 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 				return fmt.Errorf("symlink %s → %s: %w", dstAbs, srcAbs, err)
 			}
 
-			state.Deployed = append(state.Deployed, DeployedFile{
+			newFiles = append(newFiles, DeployedFile{
 				GamePath: dstAbs, ModID: modID, IsCustom: instr.IsCustom,
 			})
+		}
+	}
+
+	// ── Same-profile orphan cleanup ───────────────────────────────────────────
+	// Find files from the previous deployment that are no longer in the new set
+	// (i.e. their mod was removed from the profile) and remove/restore them.
+	if oldManifest != nil && oldManifest.ProfileID == profile.Name && oldManifest.InstallationID == game.ID {
+		newSet := make(map[string]string, len(newFiles)) // GamePath → ModID
+		for _, f := range newFiles {
+			newSet[f.GamePath] = f.ModID
+		}
+		var orphans []DeployedFile
+		for _, f := range oldManifest.DeployedFiles {
+			if _, stillPresent := newSet[f.GamePath]; !stillPresent {
+				orphans = append(orphans, f)
+			}
+		}
+		if err := removeDeployedFiles(game, orphans, backupReg); err != nil {
+			return fmt.Errorf("remove orphaned files: %w", err)
 		}
 	}
 
 	if err := saveBackupRegistry(game.ID, backupReg); err != nil {
 		return fmt.Errorf("save backup registry: %w", err)
 	}
-	return saveState(state)
-}
 
-// Undeploy removes all symlinks recorded in the deployment state and restores
-// any backed-up original game files.
-func Undeploy(game *config.GameInstall) error {
-	state, err := loadState()
-	if err != nil {
-		return fmt.Errorf("load state: %w", err)
+	// Write manifest to game directory.
+	manifest := &DeploymentManifest{
+		ProfileID:      profile.Name,
+		InstallationID: game.ID,
+		DeployedFiles:  newFiles,
+	}
+	if err := saveManifest(game.Path, manifest); err != nil {
+		return fmt.Errorf("save deployment manifest: %w", err)
 	}
 
+	// Keep state.json in sync for any tooling that still reads it.
+	return saveState(&State{GameID: game.ID, Profile: profile.Name, Deployed: newFiles})
+}
+
+// removeDeployedFiles is a shared helper used by both Deploy (orphan/wipe) and
+// Undeploy. It removes each file and restores any backup that exists for it.
+func removeDeployedFiles(game *config.GameInstall, files []DeployedFile, backupReg *backupRegistry) error {
+	for _, df := range files {
+		if _, err := os.Lstat(df.GamePath); err != nil {
+			// File already gone – fine.
+			continue
+		}
+
+		if df.IsWriteFile {
+			_ = os.Remove(df.GamePath)
+			continue
+		}
+
+		info, err := os.Lstat(df.GamePath)
+		if err != nil {
+			continue
+		}
+		if !isSymlink(info) {
+			continue
+		}
+		if err := os.Remove(df.GamePath); err != nil {
+			return fmt.Errorf("remove symlink %s: %w", df.GamePath, err)
+		}
+
+		if df.IsCustom {
+			rel, err := filepath.Rel(game.Path, df.GamePath)
+			if err == nil {
+				_ = restoreBackup(game.ID, game.Path, filepath.ToSlash(rel), backupReg)
+			}
+		}
+	}
+	return nil
+}
+
+// Undeploy removes all symlinks recorded in the deployment manifest (or legacy
+// state.json) and restores any backed-up original game files.
+func Undeploy(game *config.GameInstall) error {
 	backupReg, err := loadBackupRegistry(game.ID)
 	if err != nil {
 		return fmt.Errorf("load backup registry: %w", err)
 	}
 
-	for _, df := range state.Deployed {
+	// Primary source: manifest in game directory.
+	manifest, err := loadManifest(game.Path)
+	if err != nil {
+		return fmt.Errorf("load deployment manifest: %w", err)
+	}
+
+	var deployed []DeployedFile
+	if manifest != nil {
+		deployed = manifest.DeployedFiles
+	} else {
+		// Fallback: legacy state.json for deployments made before manifest support.
+		state, err := loadState()
+		if err != nil {
+			return fmt.Errorf("load state: %w", err)
+		}
+		deployed = state.Deployed
+	}
+
+	for _, df := range deployed {
 		if _, err := os.Lstat(df.GamePath); err != nil {
 			// File already gone – fine.
 			continue
@@ -273,6 +423,9 @@ func Undeploy(game *config.GameInstall) error {
 	}
 
 	// Clear deployment state.
+	if err := deleteManifest(game.Path); err != nil {
+		return fmt.Errorf("delete deployment manifest: %w", err)
+	}
 	return saveState(&State{})
 }
 
