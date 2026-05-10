@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/ITR-MOD/field-kit/internal/config"
 	"github.com/ITR-MOD/field-kit/internal/modmgr"
@@ -173,6 +174,20 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 		return fmt.Errorf("load deployment manifest: %w", err)
 	}
 
+	// No manifest found: fall back to legacy state.json so that orphan detection
+	// and profile-change detection work correctly for deployments made before
+	// manifest support was added (migration path).
+	if oldManifest == nil {
+		state, err := loadState()
+		if err == nil && len(state.Deployed) > 0 {
+			oldManifest = &DeploymentManifest{
+				ProfileID:      state.Profile,
+				InstallationID: state.GameID,
+				DeployedFiles:  state.Deployed,
+			}
+		}
+	}
+
 	if oldManifest != nil {
 		profileChanged := oldManifest.ProfileID != profile.Name || oldManifest.InstallationID != game.ID
 		if profileChanged {
@@ -219,6 +234,11 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 
 		for _, instr := range instructions {
 			dstAbs := filepath.Join(game.Path, filepath.FromSlash(instr.Dest))
+
+			// Safety: never touch protected game-root files.
+			if isDeniedDest(game.Path, dstAbs) {
+				continue
+			}
 
 			// ── WriteContent: manager-provided file (e.g. override.txt) ─────
 			// Write a fixed string to dstAbs as a plain file; do not symlink.
@@ -327,8 +347,33 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 	return saveState(&State{GameID: game.ID, Profile: profile.Name, Deployed: newFiles})
 }
 
-// removeDeployedFiles is a shared helper used by both Deploy (orphan/wipe) and
-// Undeploy. It removes each file and restores any backup that exists for it.
+// isDeniedDest reports whether deploying to dstAbs is forbidden.
+// Denied targets (relative to game root):
+//   - The deployment manifest itself (field-kit-manifest.json)
+//   - Any IntoTheRadius*.exe directly in the game root
+func isDeniedDest(gamePath, dstAbs string) bool {
+	rel, err := filepath.Rel(gamePath, dstAbs)
+	if err != nil {
+		return false
+	}
+	// Reject paths that escape the game root.
+	if strings.HasPrefix(rel, "..") {
+		return true
+	}
+	// Only check files directly in the game root (no sub-directory separator).
+	if filepath.Dir(rel) == "." {
+		name := filepath.Base(rel)
+		if name == manifestFilename {
+			return true
+		}
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "intotheradius") && strings.HasSuffix(lower, ".exe") {
+			return true
+		}
+	}
+	return false
+}
+
 func removeDeployedFiles(game *config.GameInstall, files []DeployedFile, backupReg *backupRegistry) error {
 	for _, df := range files {
 		if _, err := os.Lstat(df.GamePath); err != nil {
@@ -388,38 +433,8 @@ func Undeploy(game *config.GameInstall) error {
 		deployed = state.Deployed
 	}
 
-	for _, df := range deployed {
-		if _, err := os.Lstat(df.GamePath); err != nil {
-			// File already gone – fine.
-			continue
-		}
-
-		// Manager-written files (e.g. override.txt) are plain files, not symlinks.
-		// Just delete them; there is nothing to restore.
-		if df.IsWriteFile {
-			_ = os.Remove(df.GamePath)
-			continue
-		}
-
-		// Symlinked files.
-		info, err := os.Lstat(df.GamePath)
-		if err != nil {
-			continue
-		}
-		if !isSymlink(info) {
-			continue
-		}
-		if err := os.Remove(df.GamePath); err != nil {
-			return fmt.Errorf("remove symlink %s: %w", df.GamePath, err)
-		}
-
-		// Restore backup if one exists for this path.
-		if df.IsCustom {
-			rel, err := filepath.Rel(game.Path, df.GamePath)
-			if err == nil {
-				_ = restoreBackup(game.ID, game.Path, filepath.ToSlash(rel), backupReg)
-			}
-		}
+	if err := removeDeployedFiles(game, deployed, backupReg); err != nil {
+		return err
 	}
 
 	// Clear deployment state.
