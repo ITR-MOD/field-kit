@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,7 +19,20 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            gcc-mingw-w64-x86-64
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: build --snapshot --clean
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: field-kit-snapshot
+          path: dist/

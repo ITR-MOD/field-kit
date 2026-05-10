@@ -27,20 +27,28 @@ builds:
     goarch:
       - amd64
 
-  # Desktop GUI build (Windows only, CGO + Wails desktop tag)
+  # Desktop GUI build (Linux + Windows, CGO + Wails desktop tag)
   - id: desktop
     binary: field-kit-desktop
     env:
       - CGO_ENABLED=1
     flags:
       - -tags=desktop,production
-    ldflags:
-      - -w -s -H windowsgui
     goos:
       - linux
       - windows
     goarch:
       - amd64
+    overrides:
+      - goos: windows
+        env:
+          - CGO_ENABLED=1
+          - CC=x86_64-w64-mingw32-gcc
+        ldflags:
+          - -w -s -H windowsgui
+      - goos: linux
+        ldflags:
+          - -w -s
 
 archives:
   - id: tui
