@@ -43,6 +43,7 @@ func runGUI(_ *cobra.Command, _ []string) error {
 		MaxHeight: 1080,
 		MinWidth:  990,
 		MinHeight: 480,
+		Frameless:  true,
 		AssetServer: &assetserver.Options{
 			Assets: frontendFS,
 		},
