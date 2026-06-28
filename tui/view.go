@@ -56,6 +56,12 @@ var (
 	sItemFaint = lipgloss.NewStyle().
 			Foreground(cGreenDim).Background(cBlack)
 
+	sItemExcluded = lipgloss.NewStyle().
+			Foreground(cRed).Background(cBlack)
+
+	sItemExcludedSelected = lipgloss.NewStyle().
+				Bold(true).Foreground(cBlack).Background(cRed)
+
 	sAccent = lipgloss.NewStyle().
 		Bold(true).Foreground(cBright).Background(cBlack)
 
@@ -631,6 +637,7 @@ func (m model) renderAdjustOverlay() string {
 		instrIdx   int
 		label      string
 		isModified bool
+		isExcluded bool
 		isWritten  bool // WriteContent rows: non-editable
 	}
 	var rows []row
@@ -644,6 +651,7 @@ func (m model) renderAdjustOverlay() string {
 			rows = append(rows, row{instrIdx: i, label: label, isWritten: true})
 			continue
 		}
+		excludedFile := m.adjustExcluded[instr.Source]
 		dest := defaults[i]
 		modified := false
 		if ov, ok := m.adjustOverrides[instr.Source]; ok {
@@ -651,16 +659,21 @@ func (m model) renderAdjustOverlay() string {
 			modified = true
 		}
 		src := truncate(instr.Source, 30)
-		dst := truncate(dest, innerW-36)
-		marker := "  "
-		if modified {
-			marker = "* "
+		var label string
+		switch {
+		case excludedFile:
+			label = fmt.Sprintf("X %-30s  (excluded — not deployed)", src)
+		case modified:
+			dst := truncate(dest, innerW-36)
+			label = fmt.Sprintf("* %-30s  →  %s", src, dst)
+		default:
+			dst := truncate(dest, innerW-36)
+			label = fmt.Sprintf("  %-30s  →  %s", src, dst)
 		}
-		label := fmt.Sprintf("%s%-30s  →  %s", marker, src, dst)
 		if editableCount == m.adjustCursor {
 			cursorRow = len(rows)
 		}
-		rows = append(rows, row{instrIdx: i, label: label, isModified: modified})
+		rows = append(rows, row{instrIdx: i, label: label, isModified: modified, isExcluded: excludedFile})
 		editableCount++
 	}
 
@@ -696,6 +709,10 @@ func (m model) renderAdjustOverlay() string {
 		switch {
 		case r.isWritten:
 			style = sItemFaint
+		case selected && r.isExcluded:
+			style = sItemExcludedSelected
+		case r.isExcluded:
+			style = sItemExcluded
 		case selected && r.isModified:
 			style = sItemActiveSelected
 		case selected:
@@ -717,8 +734,12 @@ func (m model) renderAdjustOverlay() string {
 		scrollInfo = "\n" + sItemFaint.Render(fmt.Sprintf("(%d/%d)", scroll+1, len(rows)))
 	}
 
+	hint := "↑↓ nav   Enter edit   r reset   * = overridden   Esc/s save"
+	if m.adjustIsProfile {
+		hint = "↑↓ nav   Enter edit   r reset   x exclude   * = overridden   Esc/s save"
+	}
 	sb.WriteString(scrollInfo + "\n")
-	sb.WriteString(sItemFaint.Render("↑↓ nav   Enter edit   r reset   * = overridden   Esc/s save"))
+	sb.WriteString(sItemFaint.Render(hint))
 	return sOverlay.Width(w).Render(sb.String())
 }
 

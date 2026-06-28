@@ -14,6 +14,9 @@ import (
 type ModOverrides struct {
 	// Sources maps a mod-relative source path → game-root-relative dest override.
 	Sources map[string]string `json:"sources,omitempty"`
+	// Excluded lists mod-relative source paths that should be skipped entirely
+	// during deployment. Only meaningful on profile-level overrides.
+	Excluded []string `json:"excluded,omitempty"`
 }
 
 // OverridesPath returns the on-disk path for a mod's override file.
@@ -38,11 +41,11 @@ func LoadModOverrides(modID string) (*ModOverrides, error) {
 	return &o, nil
 }
 
-// SaveModOverrides persists overrides for a mod. If Sources is empty the file
-// is removed (no point keeping an empty override file).
+// SaveModOverrides persists overrides for a mod. If Sources and Excluded are
+// both empty the file is removed (no point keeping an empty override file).
 func SaveModOverrides(modID string, o *ModOverrides) error {
 	path := OverridesPath(modID)
-	if len(o.Sources) == 0 {
+	if len(o.Sources) == 0 && len(o.Excluded) == 0 {
 		err := os.Remove(path)
 		if os.IsNotExist(err) {
 			return nil

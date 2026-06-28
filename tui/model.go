@@ -118,6 +118,7 @@ type model struct {
 	adjustInstructions []modmgr.Instruction // instructions for the mod being adjusted
 	adjustDefaults     []string             // mapper-default Dest per instruction (parallel slice)
 	adjustOverrides    map[string]string    // edits in progress: source → override dest
+	adjustExcluded     map[string]bool      // edits in progress: sources excluded from deployment (profile-level only)
 	adjustModID        string               // mod being adjusted
 	adjustCursor       int
 	adjustScroll       int
@@ -684,11 +685,15 @@ func (m *model) openAdjustOverlay(mod *modmgr.ModMeta, isProfile bool) {
 
 	// Load existing overrides into the editing map.
 	overrides := make(map[string]string)
+	excluded := make(map[string]bool)
 	if isProfile && m.selectedProfile != nil {
 		if m.selectedProfile.Overrides != nil {
 			if modOvr, ok := m.selectedProfile.Overrides[mod.ID]; ok {
 				for k, v := range modOvr.Sources {
 					overrides[k] = v
+				}
+				for _, src := range modOvr.Excluded {
+					excluded[src] = true
 				}
 			}
 		}
@@ -704,6 +709,7 @@ func (m *model) openAdjustOverlay(mod *modmgr.ModMeta, isProfile bool) {
 	m.adjustInstructions = instructions
 	m.adjustDefaults = defaults
 	m.adjustOverrides = overrides
+	m.adjustExcluded = excluded
 	m.adjustModID = mod.ID
 	m.adjustCursor = 0
 	m.adjustScroll = 0
@@ -713,22 +719,26 @@ func (m *model) openAdjustOverlay(mod *modmgr.ModMeta, isProfile bool) {
 
 // saveAdjustOverlay persists current edits and closes the overlay.
 func (m *model) saveAdjustOverlay() tea.Cmd {
-	overrides := &modmgr.ModOverrides{Sources: m.adjustOverrides}
 	modID := m.adjustModID
 
 	if m.adjustIsProfile && m.selectedProfile != nil {
+		excludedList := make([]string, 0, len(m.adjustExcluded))
+		for src := range m.adjustExcluded {
+			excludedList = append(excludedList, src)
+		}
 		if m.selectedProfile.Overrides == nil {
 			m.selectedProfile.Overrides = make(map[string]modmgr.ModOverrides)
 		}
-		if len(m.adjustOverrides) == 0 {
+		if len(m.adjustOverrides) == 0 && len(excludedList) == 0 {
 			delete(m.selectedProfile.Overrides, modID)
 		} else {
-			m.selectedProfile.Overrides[modID] = modmgr.ModOverrides{Sources: m.adjustOverrides}
+			m.selectedProfile.Overrides[modID] = modmgr.ModOverrides{Sources: m.adjustOverrides, Excluded: excludedList}
 		}
 		if err := m.selectedProfile.Save(); err != nil {
 			return statusCmd(err.Error(), true)
 		}
 	} else {
+		overrides := &modmgr.ModOverrides{Sources: m.adjustOverrides}
 		if err := modmgr.SaveModOverrides(modID, overrides); err != nil {
 			return statusCmd(err.Error(), true)
 		}
@@ -800,6 +810,17 @@ func (m model) updateAdjustOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		src := instrs[editableIdx[m.adjustCursor]].Source
 		delete(m.adjustOverrides, src)
+
+	case "x":
+		if !m.adjustIsProfile || ne == 0 {
+			break
+		}
+		src := instrs[editableIdx[m.adjustCursor]].Source
+		if m.adjustExcluded[src] {
+			delete(m.adjustExcluded, src)
+		} else {
+			m.adjustExcluded[src] = true
+		}
 	}
 
 	return m, nil

@@ -228,6 +228,17 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 			instructions = modmgr.MapFilesForGame(meta.Files, config.GameInternalID(game.Version))
 		}
 
+		// Profile-level exclusion: mod-relative sources the profile says should
+		// never be deployed, regardless of dest overrides.
+		excluded := map[string]bool{}
+		if profile.Overrides != nil {
+			if profMod, ok := profile.Overrides[modID]; ok {
+				for _, src := range profMod.Excluded {
+					excluded[src] = true
+				}
+			}
+		}
+
 		// Apply destination overrides: profile > mod > default.
 		modOvr, _ := modmgr.LoadModOverrides(modID)
 		for i, instr := range instructions {
@@ -250,6 +261,10 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 		}
 
 		for _, instr := range instructions {
+			if excluded[instr.Source] {
+				continue
+			}
+
 			dstAbs := filepath.Join(game.Path, filepath.FromSlash(instr.Dest))
 
 			// Safety: never touch protected game-root files.
