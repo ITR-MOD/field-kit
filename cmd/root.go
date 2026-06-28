@@ -25,6 +25,11 @@ func Execute() {
 }
 
 func init() {
+	// Disable cobra's "mousetrap" splash screen: the TUI/GUI builds are
+	// meant to run with no args when double-clicked from Explorer, so the
+	// default "open cmd.exe" warning would only get in the way.
+	cobra.MousetrapHelpText = ""
+
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(gameCmd)
