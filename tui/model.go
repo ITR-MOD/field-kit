@@ -237,6 +237,10 @@ func (m model) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeTab != tabProfiles {
 			m.activeTab = (m.activeTab + numTabs - 1) % numTabs
 		}
+	case "right":
+		m.activeTab = (m.activeTab + 1) % numTabs
+	case "left":
+		m.activeTab = (m.activeTab + numTabs - 1) % numTabs
 	default:
 		return m.updateTab(key)
 	}
@@ -294,12 +298,6 @@ func (m model) updateGamesTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayDetect
 		m.detectPaths = append(found, detectManualSentinel)
 		m.detectCursor = 0
-	case "f":
-		// Browse for IntoTheRadius*.exe to locate a game install manually.
-		m.openFilePicker(FpFilterGameExe, func(path string) tea.Cmd {
-			// The exe lives at game root; pass the parent dir as game path.
-			return gameAskName(filepath.Dir(path))
-		})
 	case "delete", "backspace":
 		if n > 0 {
 			g := m.games[*cur]
@@ -341,15 +339,11 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		})
 	case "m":
 		if n > 0 {
-			m.openAdjustOverlay(m.mods[*cur], false)
-		}
-	case "f":
-		if n > 0 {
 			mod := m.mods[*cur]
-			if !mod.IsFomod() {
-				return m, statusCmd("\""+mod.Name+"\" is not a FOMOD mod", true)
+			if mod.IsFomod() && mod.IsFomodPending() {
+				return m, m.openFomodWizard(mod, false)
 			}
-			return m, m.openFomodWizard(mod, false)
+			m.openAdjustOverlay(mod, false)
 		}
 	case "delete", "backspace":
 		if n > 0 {
@@ -396,7 +390,7 @@ func (m model) updateProfilesLeft(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.reload()
 			return m, statusCmd("active profile: "+name, false)
 		}
-	case "right", "l":
+	case "l":
 		if len(m.mods) > 0 {
 			m.profilesRightFocus = true
 		}
@@ -453,7 +447,7 @@ func (m model) updateProfilesRight(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.profileModsCursor < n-1 {
 			m.profileModsCursor++
 		}
-	case "left", "h":
+	case "h":
 		m.profilesRightFocus = false
 	case " ", "enter":
 		if n > 0 && m.selectedProfile != nil {
@@ -470,10 +464,7 @@ func (m model) updateProfilesRight(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "m":
 		if n > 0 {
 			mod := m.mods[m.profileModsCursor]
-			if mod.IsFomod() {
-				if mod.IsFomodPending() {
-					return m, statusCmd("configure \""+mod.Name+"\"'s FOMOD default in the Mods tab first", true)
-				}
+			if mod.IsFomod() && len(m.fomodEffectiveEntries(mod, true)) == 0 {
 				return m, m.openFomodWizard(mod, true)
 			}
 			m.openAdjustOverlay(mod, true)
@@ -612,8 +603,6 @@ func (m model) updateConfirmOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch key.String() {
-	case "left", "h", "right", "l":
-		m.confirmSel ^= 1
 	case "y":
 		onYes := m.confirmOnYes
 		m.overlay = overlayNone
@@ -804,12 +793,12 @@ func (m model) updateAdjustOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "r":
-		if ne == 0 {
-			break
+	case "f":
+		for _, mod := range m.mods {
+			if mod.ID == m.adjustModID && mod.IsFomod() {
+				return m, m.openFomodWizard(mod, m.adjustIsProfile)
+			}
 		}
-		src := instrs[editableIdx[m.adjustCursor]].Source
-		delete(m.adjustOverrides, src)
 
 	case "x":
 		if !m.adjustIsProfile || ne == 0 {
@@ -1072,6 +1061,13 @@ func trimInput(s string) string {
 
 func imax(a, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func imin(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b

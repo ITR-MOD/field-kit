@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ITR-MOD/field-kit/internal/fomod"
 	"github.com/ITR-MOD/field-kit/internal/modmgr"
@@ -35,6 +36,10 @@ type fomodState struct {
 
 	cursor int
 	scroll int
+
+	// descScroll is the vertical scroll offset into the wrapped description
+	// of the currently selected row. Reset to 0 whenever the cursor moves.
+	descScroll int
 }
 
 // openFomodWizard loads a mod's ModuleConfig.xml and opens the wizard
@@ -259,12 +264,22 @@ func (m model) updateFomodOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.fomod.cursor > 0 {
 			m.fomod.cursor--
+			m.fomod.descScroll = 0
 		}
 
 	case "down", "j":
 		if m.fomod.cursor < len(rows)-1 {
 			m.fomod.cursor++
+			m.fomod.descScroll = 0
 		}
+
+	case "pgup":
+		if m.fomod.descScroll > 0 {
+			m.fomod.descScroll--
+		}
+
+	case "pgdown":
+		m.fomod.descScroll++
 
 	case " ", "enter":
 		row := rows[m.fomod.cursor]
@@ -292,9 +307,13 @@ func (m model) renderFomodOverlay() string {
 		return ""
 	}
 
-	w := imax(70, m.width*3/4)
+	w := imin(imax(96, m.width*9/10), m.width-4)
+	visH := imin(imax(12, m.height*3/4), imax(4, m.height-6))
 	innerW := w - 6
-	visH := imax(6, m.height*2/3)
+
+	dividerW := 3
+	listW := imax(10, (innerW-dividerW)*2/5)
+	descW := imax(10, innerW-dividerW-listW)
 
 	scopeLabel := " [mod default]"
 	if m.fomod.isProfile {
@@ -306,6 +325,15 @@ func (m model) renderFomodOverlay() string {
 	sb.WriteString(sItemFaint.Render(" "+step.Name) + "\n")
 	sb.WriteString(sItemFaint.Render(strings.Repeat("─", innerW)) + "\n")
 
+	// The trailing "Continue" row is rendered full-width below the two-column
+	// block, not split into list/description cells.
+	optRows := rows
+	continueIdx := -1
+	if len(rows) > 0 && rows[len(rows)-1].isContinue {
+		continueIdx = len(rows) - 1
+		optRows = rows[:continueIdx]
+	}
+
 	scroll := m.fomod.scroll
 	if m.fomod.cursor < scroll {
 		scroll = m.fomod.cursor
@@ -313,50 +341,105 @@ func (m model) renderFomodOverlay() string {
 	if m.fomod.cursor >= scroll+visH {
 		scroll = m.fomod.cursor - visH + 1
 	}
+	if maxScroll := imax(0, len(optRows)-visH); scroll > maxScroll {
+		scroll = maxScroll
+	}
+	if scroll < 0 {
+		scroll = 0
+	}
 
+	var leftLines []string
 	lastGroup := -1
-	for i, row := range rows {
+	for i, row := range optRows {
 		if i < scroll || i >= scroll+visH {
+			lastGroup = row.groupIdx
 			continue
 		}
 		selected := i == m.fomod.cursor
 
-		if row.isContinue {
-			label := "  [ Continue ]"
-			style := sItem
-			if selected {
-				style = sItemSelected
-			}
-			sb.WriteString(style.Width(innerW).Render(label) + "\n")
-			continue
+		if row.groupIdx != lastGroup {
+			lastGroup = row.groupIdx
+			g := step.OptionalFileGroups.Groups[row.groupIdx]
+			header := truncate(fmt.Sprintf(" %s (%s)", g.Name, g.Type), listW)
+			leftLines = append(leftLines, sAccent.Width(listW).Render(header))
 		}
 
 		g := step.OptionalFileGroups.Groups[row.groupIdx]
 		p := g.Plugins.Plugins[row.pluginIdx]
-
-		if row.groupIdx != lastGroup {
-			lastGroup = row.groupIdx
-			sb.WriteString(sAccent.Render(fmt.Sprintf(" %s (%s)", g.Name, g.Type)) + "\n")
-		}
-
 		mark := "[ ]"
 		if m.fomodIsSelected(step, row.groupIdx, row.pluginIdx) {
 			mark = "[x]"
 		}
-		flatDesc := strings.Join(strings.Fields(p.Description), " ")
-		desc := truncate(flatDesc, innerW-30)
-		line := fmt.Sprintf("  %s %-20s %s", mark, truncate(p.Name, 20), desc)
+		line := fmt.Sprintf("  %s %s", mark, truncate(p.Name, listW-6))
 
 		style := sItem
 		if selected {
 			style = sItemSelected
 		}
-		sb.WriteString(style.Width(innerW).Render(line) + "\n")
+		leftLines = append(leftLines, style.Width(listW).Render(line))
+	}
+	for len(leftLines) < visH {
+		leftLines = append(leftLines, sItem.Width(listW).Render(""))
+	}
+	leftLines = leftLines[:visH]
+
+	// Description pane shows the currently selected row's full description,
+	// independent of which list row that corresponds to vertically.
+	var descText string
+	if m.fomod.cursor < len(optRows) {
+		row := optRows[m.fomod.cursor]
+		g := step.OptionalFileGroups.Groups[row.groupIdx]
+		p := g.Plugins.Plugins[row.pluginIdx]
+		descText = strings.TrimSpace(p.Description)
+	} else {
+		descText = "Press Enter to continue with the selections above."
+	}
+	if descText == "" {
+		descText = "(no description)"
+	}
+	wrapped := lipgloss.NewStyle().Width(descW).Render(descText)
+	descLines := strings.Split(wrapped, "\n")
+
+	descScroll := m.fomod.descScroll
+	if maxDescScroll := imax(0, len(descLines)-visH); descScroll > maxDescScroll {
+		descScroll = maxDescScroll
+	}
+	overflow := len(descLines) > visH
+
+	var rightLines []string
+	for i := 0; i < visH; i++ {
+		idx := descScroll + i
+		if idx < len(descLines) {
+			line := descLines[idx]
+			if overflow && i == visH-1 && idx < len(descLines)-1 {
+				line = truncate(line, descW-1) + "…"
+			}
+			rightLines = append(rightLines, sItemFaint.Width(descW).Render(line))
+		} else {
+			rightLines = append(rightLines, sItemFaint.Width(descW).Render(""))
+		}
+	}
+
+	divider := sItemFaint.Render(" │ ")
+	for i := 0; i < visH; i++ {
+		sb.WriteString(leftLines[i] + divider + rightLines[i] + "\n")
+	}
+
+	if continueIdx >= 0 {
+		label := "  [ Continue ]"
+		style := sItem
+		if m.fomod.cursor == continueIdx {
+			style = sItemSelected
+		}
+		sb.WriteString(style.Width(innerW).Render(label) + "\n")
 	}
 
 	hint := "↑↓ nav   Space/Enter toggle   Continue to advance   a adjust   Esc cancel"
 	if m.fomod.isProfile {
 		hint = "↑↓ nav   Space/Enter toggle   Continue to advance   a adjust   d use default   Esc cancel"
+	}
+	if overflow {
+		hint += "   PgUp/PgDn desc"
 	}
 	sb.WriteString("\n" + sItemFaint.Render(hint))
 	return sOverlay.Width(w).Render(sb.String())

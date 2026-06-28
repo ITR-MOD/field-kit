@@ -7,7 +7,9 @@
       "Bash(go list:*)",
       "Bash(go mod:*)",
       "Bash(go vet:*)",
-      "Bash(goreleaser build:*)"
+      "Bash(goreleaser build:*)",
+      "Bash(go build *)",
+      "Bash(gofmt -l tui/*.go)"
     ]
   }
 }

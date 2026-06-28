@@ -392,7 +392,12 @@ func (m model) renderProfileMods(h, w int) string {
 		if inProfile {
 			check = "[✓]"
 		}
-		line := fmt.Sprintf(" %s %s", check, truncate(mod.Name, w-7))
+		tag := fmt.Sprintf("[%-8s]", truncate(modTypeSummary(mod), 8))
+		name := truncate(mod.Name, w-18)
+		if mod.IsFomodPending() {
+			name += " [needs setup]"
+		}
+		line := fmt.Sprintf(" %s %s %s", check, tag, name)
 
 		switch {
 		case isCursor && inProfile:
@@ -480,18 +485,18 @@ func (m model) renderHelp() string {
 		return sHelpKey.Render(k) + sHelp.Render(":"+desc)
 	}
 
-	parts := []string{key("1-4", "tabs"), key("Tab", "next tab"), key("↑↓", "nav")}
+	parts := []string{key("1-4/←→", "tabs"), key("↑↓", "nav")}
 
 	switch m.activeTab {
 	case tabGames:
-		parts = append(parts, key("a", "detect"), key("f", "browse"), key("↵", "set active"), key("Del", "remove"))
+		parts = append(parts, key("a", "detect"), key("↵", "set active"), key("Del", "remove"))
 	case tabMods:
-		parts = append(parts, key("i", "import"), key("↵", "info"), key("m", "adjust"), key("f", "fomod"), key("Del", "remove"))
+		parts = append(parts, key("i", "import"), key("↵", "info"), key("m", "adjust"), key("Del", "remove"))
 	case tabProfiles:
 		if m.profilesRightFocus {
-			parts = append(parts, key("Space", "toggle mod"), key("m", "adjust"), key("←", "profiles pane"))
+			parts = append(parts, key("Space", "toggle mod"), key("m", "adjust"), key("h", "profiles pane"))
 		} else {
-			parts = append(parts, key("n", "new"), key("i", "import"), key("e", "export"), key("↵", "activate"), key("→", "mods"), key("Del", "delete"))
+			parts = append(parts, key("n", "new"), key("i", "import"), key("e", "export"), key("↵", "activate"), key("l", "mods"), key("Del", "delete"))
 		}
 	case tabDeploy:
 		parts = append(parts, key("d", "deploy"), key("u", "undeploy"), key("r", "refresh"))
@@ -553,7 +558,7 @@ func (m model) renderConfirmOverlay() string {
 	btnGap := sItemFaint.Render("    ")
 	content := sOverlayTitle.Render(m.confirmPrompt) + "\n\n" +
 		yesStyle.Render(" YES ") + btnGap + noStyle.Render("  NO  ") + "\n\n" +
-		sItemFaint.Render("←/→ choose   y/n shortcut   Enter confirm")
+		sItemFaint.Render("y yes   n/Esc no   Enter default")
 	return sOverlay.Width(50).Render(content)
 }
 
@@ -625,9 +630,11 @@ func (m model) renderAdjustOverlay() string {
 
 	// Find the mod name.
 	modName := m.adjustModID
+	isFomod := false
 	for _, mod := range m.mods {
 		if mod.ID == m.adjustModID {
 			modName = mod.Name
+			isFomod = mod.IsFomod()
 			break
 		}
 	}
@@ -734,9 +741,12 @@ func (m model) renderAdjustOverlay() string {
 		scrollInfo = "\n" + sItemFaint.Render(fmt.Sprintf("(%d/%d)", scroll+1, len(rows)))
 	}
 
-	hint := "↑↓ nav   Enter edit   r reset   * = overridden   Esc/s save"
+	hint := "↑↓ nav   Enter edit   * = overridden   Esc/s save"
 	if m.adjustIsProfile {
-		hint = "↑↓ nav   Enter edit   r reset   x exclude   * = overridden   Esc/s save"
+		hint = "↑↓ nav   Enter edit   x exclude   * = overridden   Esc/s save"
+	}
+	if isFomod {
+		hint += "   f redo wizard"
 	}
 	sb.WriteString(scrollInfo + "\n")
 	sb.WriteString(sItemFaint.Render(hint))
