@@ -280,6 +280,9 @@ func (m model) renderModsTab(h int) string {
 
 		typeStr := modTypeSummary(mod)
 		name := truncate(mod.Name, m.width-22)
+		if mod.IsFomodPending() {
+			name += " [needs setup]"
+		}
 		line := fmt.Sprintf("  %-18s  %s", typeStr, name)
 
 		if isCursor {
@@ -477,7 +480,7 @@ func (m model) renderHelp() string {
 	case tabGames:
 		parts = append(parts, key("a", "detect"), key("f", "browse"), key("↵", "set active"), key("Del", "remove"))
 	case tabMods:
-		parts = append(parts, key("i", "import"), key("↵", "info"), key("m", "adjust"), key("Del", "remove"))
+		parts = append(parts, key("i", "import"), key("↵", "info"), key("m", "adjust"), key("f", "fomod"), key("Del", "remove"))
 	case tabProfiles:
 		if m.profilesRightFocus {
 			parts = append(parts, key("Space", "toggle mod"), key("m", "adjust"), key("←", "profiles pane"))
@@ -515,6 +518,8 @@ func (m model) renderOverlayOn(base string) string {
 		return m.renderFilePickerOverlay()
 	case overlayAdjust:
 		content = m.renderAdjustOverlay()
+	case overlayFomod:
+		content = m.renderFomodOverlay()
 	}
 	if content == "" {
 		return base

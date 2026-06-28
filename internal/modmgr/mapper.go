@@ -44,7 +44,18 @@ type Instruction struct {
 }
 
 // DetectTypes returns all mod types present in the given file list.
+//
+// A fomod/ModuleConfig.xml short-circuits every other heuristic: until the
+// install wizard runs, the final file set is unknown, so the loose payload
+// files must not be misdetected as Pak/Custom/etc.
 func DetectTypes(files []string) []ModType {
+	hasFomod := anyMatch(files, func(f string) bool {
+		return strings.EqualFold(base(f), "ModuleConfig.xml") && strings.EqualFold(base(dir(f)), "fomod")
+	})
+	if hasFomod {
+		return []ModType{ModTypeFomod}
+	}
+
 	hasUE4SS := anyMatch(files, func(f string) bool {
 		return base(f) == "UE4SS.dll" && dir(f) == "ue4ss"
 	})
@@ -95,6 +106,29 @@ func IsSupported(files []string) bool {
 // MapFiles maps mod files for ITR2 (default).
 func MapFiles(files []string) []Instruction {
 	return MapFilesForGame(files, GameInternalID)
+}
+
+// MapFomodFiles maps a mod's mod-level default FOMOD selection to deploy
+// instructions. See MapFomodEntries for the underlying mapping rules.
+func MapFomodFiles(meta *ModMeta) []Instruction {
+	return MapFomodEntries(meta.FomodFiles)
+}
+
+// MapFomodEntries maps a resolved FOMOD file selection (either a mod's
+// default or a profile's override) to deploy instructions. FOMOD
+// destinations are already fully-resolved game-root-relative paths chosen by
+// the mod author, so they're treated the same way as the "custom" placement
+// path: may overwrite real game files and require backup on deploy.
+func MapFomodEntries(entries []FomodFileEntry) []Instruction {
+	instructions := make([]Instruction, 0, len(entries))
+	for _, entry := range entries {
+		instructions = append(instructions, Instruction{
+			Source:   entry.Source,
+			Dest:     filepath.ToSlash(entry.Dest),
+			IsCustom: true,
+		})
+	}
+	return instructions
 }
 
 // MapFilesForGame maps mod files to their game-root-relative destinations,

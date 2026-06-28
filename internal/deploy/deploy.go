@@ -214,7 +214,19 @@ func Deploy(game *config.GameInstall, profile *modmgr.Profile) error {
 			return fmt.Errorf("load mod %q: %w", modID, err)
 		}
 
-		instructions := modmgr.MapFilesForGame(meta.Files, config.GameInternalID(game.Version))
+		var instructions []modmgr.Instruction
+		if meta.IsFomod() {
+			entries := meta.FomodFiles
+			if profEntries := profile.FomodEntriesFor(modID); len(profEntries) > 0 {
+				entries = profEntries
+			}
+			if len(entries) == 0 {
+				return fmt.Errorf("mod %q needs FOMOD setup before it can be deployed — configure its default in the Mods tab", meta.Name)
+			}
+			instructions = modmgr.MapFomodEntries(entries)
+		} else {
+			instructions = modmgr.MapFilesForGame(meta.Files, config.GameInternalID(game.Version))
+		}
 
 		// Apply destination overrides: profile > mod > default.
 		modOvr, _ := modmgr.LoadModOverrides(modID)

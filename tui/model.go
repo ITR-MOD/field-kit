@@ -39,6 +39,7 @@ const (
 	overlayDetect     // Steam auto-detect results list
 	overlayFilePicker // zip file browser
 	overlayAdjust     // editable instruction list for manual destination overrides
+	overlayFomod      // FOMOD install wizard
 )
 
 // ─── Message types ───────────────────────────────────────────────────────────
@@ -121,6 +122,9 @@ type model struct {
 	adjustCursor       int
 	adjustScroll       int
 	adjustIsProfile    bool // false = mod-level, true = profile-level
+
+	// FOMOD wizard overlay.
+	fomod fomodState
 }
 
 // New creates and initialises the model.
@@ -168,6 +172,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reload()
 		if msg.err != nil {
 			return m, statusCmd(msg.err.Error(), true)
+		}
+		if msg.meta.IsFomodPending() {
+			return m, statusCmd("imported \""+msg.meta.Name+"\" — FOMOD mod, press [f] in Mods tab to set its default", false)
 		}
 		return m, statusCmd("imported \""+msg.meta.Name+"\"", false)
 
@@ -335,6 +342,14 @@ func (m model) updateModsTab(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if n > 0 {
 			m.openAdjustOverlay(m.mods[*cur], false)
 		}
+	case "f":
+		if n > 0 {
+			mod := m.mods[*cur]
+			if !mod.IsFomod() {
+				return m, statusCmd("\""+mod.Name+"\" is not a FOMOD mod", true)
+			}
+			return m, m.openFomodWizard(mod, false)
+		}
 	case "delete", "backspace":
 		if n > 0 {
 			mod := m.mods[*cur]
@@ -453,7 +468,14 @@ func (m model) updateProfilesRight(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "m":
 		if n > 0 {
-			m.openAdjustOverlay(m.mods[m.profileModsCursor], true)
+			mod := m.mods[m.profileModsCursor]
+			if mod.IsFomod() {
+				if mod.IsFomodPending() {
+					return m, statusCmd("configure \""+mod.Name+"\"'s FOMOD default in the Mods tab first", true)
+				}
+				return m, m.openFomodWizard(mod, true)
+			}
+			m.openAdjustOverlay(mod, true)
 		}
 	}
 	return m, nil
@@ -520,6 +542,8 @@ func (m model) updateOverlay(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateFilePickerOverlay(msg)
 	case overlayAdjust:
 		return m.updateAdjustOverlay(msg)
+	case overlayFomod:
+		return m.updateFomodOverlay(msg)
 	}
 	return m, nil
 }
@@ -645,7 +669,12 @@ func (m *model) openAdjustOverlay(mod *modmgr.ModMeta, isProfile bool) {
 		gameID = config.GameInternalID(config.VersionITR2)
 	}
 
-	instructions := modmgr.MapFilesForGame(mod.Files, gameID)
+	var instructions []modmgr.Instruction
+	if mod.IsFomod() {
+		instructions = modmgr.MapFomodEntries(m.fomodEffectiveEntries(mod, isProfile))
+	} else {
+		instructions = modmgr.MapFilesForGame(mod.Files, gameID)
+	}
 
 	// Snapshot mapper-default Dest for each instruction.
 	defaults := make([]string, len(instructions))

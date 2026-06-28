@@ -21,8 +21,17 @@ const (
 	ModTypeLogic   ModType = "logicmod"
 	ModTypeCustom  ModType = "custom"
 	ModTypeSML     ModType = "sml"
+	ModTypeFomod   ModType = "fomod"
 	ModTypeUnknown ModType = "unknown"
 )
+
+// FomodFileEntry is one resolved source -> destination pair chosen by the
+// user while running the FOMOD install wizard. Source is relative to the
+// mod's files/ directory; Dest is relative to the game root.
+type FomodFileEntry struct {
+	Source string `json:"source"`
+	Dest   string `json:"dest"`
+}
 
 // ModMeta holds persisted metadata for an imported mod.
 type ModMeta struct {
@@ -32,6 +41,27 @@ type ModMeta struct {
 	ImportedAt  time.Time `json:"imported_at"`
 	Types       []ModType `json:"types"`
 	Files       []string  `json:"files"` // relative paths within files/
+
+	// FomodFiles holds the resolved file list once a ModTypeFomod mod's
+	// install wizard has been completed. Nil/empty means setup is pending.
+	FomodFiles []FomodFileEntry `json:"fomod_files,omitempty"`
+}
+
+// IsFomod reports whether this mod is a FOMOD installer, regardless of
+// whether its default selection has been configured yet.
+func (m *ModMeta) IsFomod() bool {
+	for _, t := range m.Types {
+		if t == ModTypeFomod {
+			return true
+		}
+	}
+	return false
+}
+
+// IsFomodPending reports whether this mod is a FOMOD installer whose wizard
+// has not yet been completed.
+func (m *ModMeta) IsFomodPending() bool {
+	return m.IsFomod() && len(m.FomodFiles) == 0
 }
 
 // FilesDir returns the absolute path to the extracted files for this mod.
@@ -96,6 +126,33 @@ type Profile struct {
 	Name      string                  `json:"name"`
 	Mods      []string                `json:"mods"`                // ordered list of mod IDs (earlier = lower priority)
 	Overrides map[string]ModOverrides `json:"overrides,omitempty"` // per-mod destination overrides; key = modID
+
+	// FomodSelections holds a per-profile FOMOD file selection that overrides
+	// the mod's own default (meta.FomodFiles), keyed by modID. A mod absent
+	// from this map deploys using its mod-level default.
+	FomodSelections map[string][]FomodFileEntry `json:"fomod_selections,omitempty"`
+}
+
+// FomodEntriesFor returns this profile's FOMOD selection override for modID,
+// or nil if the profile has none (meaning the mod's default applies).
+func (p *Profile) FomodEntriesFor(modID string) []FomodFileEntry {
+	if p.FomodSelections == nil {
+		return nil
+	}
+	return p.FomodSelections[modID]
+}
+
+// SetFomodSelection sets (or, given an empty slice, clears) this profile's
+// FOMOD selection override for modID.
+func (p *Profile) SetFomodSelection(modID string, entries []FomodFileEntry) {
+	if len(entries) == 0 {
+		delete(p.FomodSelections, modID)
+		return
+	}
+	if p.FomodSelections == nil {
+		p.FomodSelections = map[string][]FomodFileEntry{}
+	}
+	p.FomodSelections[modID] = entries
 }
 
 // ProfilePath returns the path for a profile's JSON file within a game's profile dir.

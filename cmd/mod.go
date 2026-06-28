@@ -28,6 +28,9 @@ var modImportCmd = &cobra.Command{
 		}
 		fmt.Printf("imported %q\n  id:    %s\n  types: %s\n  files: %d\n",
 			meta.Name, meta.ID, strings.Join(types, ", "), len(meta.Files))
+		if meta.IsFomodPending() {
+			fmt.Println("  this is a FOMOD installer - run \"field-kit tui\" and open it in the Mods tab to choose install options before deploying")
+		}
 		return nil
 	},
 }
@@ -75,8 +78,18 @@ var modInfoCmd = &cobra.Command{
 		fmt.Printf("types:   %s\n", strings.Join(types, ", "))
 		fmt.Printf("files:   %d\n", len(m.Files))
 
+		if m.IsFomodPending() {
+			fmt.Println("\nthis is a FOMOD installer - run \"field-kit tui\" and open it in the Mods tab to choose install options before deploying")
+			return nil
+		}
+
 		// Show mapped instructions.
-		instructions := modmgr.MapFiles(m.Files)
+		var instructions []modmgr.Instruction
+		if len(m.FomodFiles) > 0 {
+			instructions = modmgr.MapFomodFiles(m)
+		} else {
+			instructions = modmgr.MapFiles(m.Files)
+		}
 		if len(instructions) > 0 {
 			fmt.Println("\ninstall map:")
 			for _, instr := range instructions {
