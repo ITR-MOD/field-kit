@@ -259,13 +259,13 @@ func (a *App) Undeploy(gameID string) DeployResult {
 
 // ── Mod import / removal ──────────────────────────────────────────────────────
 
-// ImportModZip opens a file-picker dialog and imports the selected .zip as a mod.
-// Returns nil without error when the user cancels.
+// ImportModZip opens a file-picker dialog and imports the selected mod archive.
+// Supports .zip, .rar, and .7z. Returns nil without error when the user cancels.
 func (a *App) ImportModZip() (*ModInfo, error) {
 	path, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
-		Title: "Import Mod (.zip)",
+		Title: "Import Mod Archive",
 		Filters: []wailsRuntime.FileFilter{
-			{DisplayName: "Zip Archives (*.zip)", Pattern: "*.zip"},
+			{DisplayName: "Mod Archives (*.zip;*.rar;*.7z)", Pattern: "*.zip;*.rar;*.7z"},
 		},
 	})
 	if err != nil || path == "" {

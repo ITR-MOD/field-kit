@@ -1,7 +1,7 @@
 package modmgr
 
 import (
-	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,17 +10,18 @@ import (
 	"time"
 
 	"github.com/ITR-MOD/field-kit/internal/config"
+	"github.com/mholt/archives"
 )
 
-// Import imports a mod from a zip archive.
+// Import imports a mod from a zip, rar, or 7z archive.
 // It:
 //  1. Copies the archive to the archives cache dir.
 //  2. Extracts files into mods/{id}/files/.
 //  3. Detects mod type(s) and saves metadata.
 //
 // Returns the new ModMeta on success.
-func Import(zipPath string) (*ModMeta, error) {
-	archiveName := filepath.Base(zipPath)
+func Import(archivePath string) (*ModMeta, error) {
+	archiveName := filepath.Base(archivePath)
 	id := makeModID(archiveName)
 
 	// Prevent duplicate imports by ID.
@@ -35,15 +36,16 @@ func Import(zipPath string) (*ModMeta, error) {
 		return nil, fmt.Errorf("create mod dir: %w", err)
 	}
 
-	// Copy archive to cache.
-	destArchive := filepath.Join(config.ArchivesDir(), id+".zip")
-	if err := copyFileOS(zipPath, destArchive); err != nil {
+	// Copy archive to cache (preserve original extension).
+	ext := filepath.Ext(archiveName)
+	destArchive := filepath.Join(config.ArchivesDir(), id+ext)
+	if err := copyFileOS(archivePath, destArchive); err != nil {
 		_ = os.RemoveAll(modDir)
 		return nil, fmt.Errorf("cache archive: %w", err)
 	}
 
-	// Extract zip.
-	relFiles, err := extractZip(destArchive, filesDir)
+	// Extract archive (zip, rar, 7z, etc.).
+	relFiles, err := extractArchive(destArchive, filesDir)
 	if err != nil {
 		_ = os.RemoveAll(modDir)
 		_ = os.Remove(destArchive)
@@ -51,7 +53,7 @@ func Import(zipPath string) (*ModMeta, error) {
 	}
 
 	modTypes := DetectTypes(relFiles)
-	name := strings.TrimSuffix(archiveName, filepath.Ext(archiveName))
+	name := strings.TrimSuffix(archiveName, ext)
 
 	meta := &ModMeta{
 		ID:          id,
@@ -70,70 +72,83 @@ func Import(zipPath string) (*ModMeta, error) {
 // RemoveMod deletes all cached files for a mod.
 func RemoveMod(id string) error {
 	modDir := filepath.Join(config.ModsDir(), id)
-	archivePath := filepath.Join(config.ArchivesDir(), id+".zip")
 
 	if err := os.RemoveAll(modDir); err != nil {
 		return fmt.Errorf("remove mod dir: %w", err)
 	}
-	// Archive removal is best-effort.
-	_ = os.Remove(archivePath)
+
+	// Remove any cached archive regardless of extension.
+	for _, ext := range []string{".zip", ".rar", ".7z"} {
+		_ = os.Remove(filepath.Join(config.ArchivesDir(), id+ext))
+	}
 	return nil
 }
 
-// extractZip extracts a zip archive to destDir and returns the list of
-// relative file paths that were extracted.
-func extractZip(zipPath, destDir string) ([]string, error) {
-	r, err := zip.OpenReader(zipPath)
+// extractArchive extracts any supported archive (zip, rar, 7z) to destDir
+// and returns the list of relative file paths that were extracted.
+func extractArchive(src, destDir string) ([]string, error) {
+	f, err := os.Open(src)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer f.Close()
+
+	format, stream, err := archives.Identify(context.Background(), filepath.Base(src), f)
+	if err != nil {
+		return nil, fmt.Errorf("identify archive format: %w", err)
+	}
+
+	ex, ok := format.(archives.Extractor)
+	if !ok {
+		return nil, fmt.Errorf("format %s does not support extraction", format.Extension())
+	}
 
 	var relPaths []string
 
-	for _, f := range r.File {
-		// Sanitise path to prevent zip-slip.
-		rel := filepath.ToSlash(f.Name)
+	handler := func(_ context.Context, info archives.FileInfo) error {
+		rel := filepath.ToSlash(info.NameInArchive)
+		// Sanitise: prevent path traversal.
 		if strings.Contains(rel, "..") {
-			continue
+			return nil
 		}
 
 		destPath := filepath.Join(destDir, rel)
 
-		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(destPath, 0755); err != nil {
-				return nil, err
-			}
-			continue
+		if info.IsDir() {
+			return os.MkdirAll(destPath, 0755)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return nil, err
+			return err
 		}
 
-		if err := extractFile(f, destPath); err != nil {
-			return nil, fmt.Errorf("extract %s: %w", rel, err)
+		rc, err := info.Open()
+		if err != nil {
+			return fmt.Errorf("open %s: %w", rel, err)
 		}
+		defer rc.Close()
+
+		out, err := os.Create(destPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		if _, err := io.Copy(out, rc); err != nil {
+			return fmt.Errorf("write %s: %w", rel, err)
+		}
+
 		relPaths = append(relPaths, rel)
+		return nil
 	}
+
+	// Some formats (e.g. RAR) only satisfy Extraction not Archival;
+	// the Extractor interface covers both via Extract(ctx, reader, handler).
+	if err := ex.Extract(context.Background(), stream, handler); err != nil {
+		return nil, err
+	}
+
 	return relPaths, nil
-}
-
-func extractFile(f *zip.File, dest string) error {
-	rc, err := f.Open()
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-
-	out, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, rc)
-	return err
 }
 
 // copyFileOS is a simple file copy helper.
